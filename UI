@@ -1,0 +1,362 @@
+-- Modern Status UI for Roblox Scripts
+-- Shows Diamond count and current status
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Create main ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "StatusUI"
+screenGui.Parent = PlayerGui
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- Main Frame
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 280, 0, 120)
+mainFrame.Position = UDim2.new(0, 20, 0, 20)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
+
+-- Create rounded corners
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = mainFrame
+
+-- Create gradient background
+local gradient = Instance.new("UIGradient")
+gradient.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0.0, Color3.fromRGB(35, 35, 40)),
+    ColorSequenceKeypoint.new(1.0, Color3.fromRGB(25, 25, 30))
+}
+gradient.Rotation = 45
+gradient.Parent = mainFrame
+
+-- Create border effect
+local border = Instance.new("UIStroke")
+border.Color = Color3.fromRGB(60, 60, 70)
+border.Thickness = 1
+border.Parent = mainFrame
+
+-- Title Bar
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 35)
+titleBar.Position = UDim2.new(0, 0, 0, 0)
+titleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 12)
+titleCorner.Parent = titleBar
+
+-- Fix title bar corners
+local titleFix = Instance.new("Frame")
+titleFix.Size = UDim2.new(1, 0, 0, 12)
+titleFix.Position = UDim2.new(0, 0, 1, -12)
+titleFix.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+titleFix.BorderSizePixel = 0
+titleFix.Parent = titleBar
+
+-- Title Text
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(1, -40, 1, 0)
+titleText.Position = UDim2.new(0, 15, 0, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "STATUS MONITOR"
+titleText.TextColor3 = Color3.fromRGB(220, 220, 230)
+titleText.TextScaled = true
+titleText.Font = Enum.Font.GothamBold
+titleText.Parent = titleBar
+
+-- Status Indicator
+local statusIndicator = Instance.new("Frame")
+statusIndicator.Size = UDim2.new(0, 8, 0, 8)
+statusIndicator.Position = UDim2.new(1, -20, 0.5, -4)
+statusIndicator.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
+statusIndicator.BorderSizePixel = 0
+statusIndicator.Parent = titleBar
+
+local indicatorCorner = Instance.new("UICorner")
+indicatorCorner.CornerRadius = UDim.new(1, 0)
+indicatorCorner.Parent = statusIndicator
+
+-- Content Area
+local contentFrame = Instance.new("Frame")
+contentFrame.Size = UDim2.new(1, -20, 1, -45)
+contentFrame.Position = UDim2.new(0, 10, 0, 40)
+contentFrame.BackgroundTransparency = 1
+contentFrame.Parent = mainFrame
+
+-- Diamond Counter Section
+local diamondSection = Instance.new("Frame")
+diamondSection.Size = UDim2.new(0.48, 0, 1, 0)
+diamondSection.Position = UDim2.new(0, 0, 0, 0)
+diamondSection.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+diamondSection.BorderSizePixel = 0
+diamondSection.Parent = contentFrame
+
+local diamondCorner = Instance.new("UICorner")
+diamondCorner.CornerRadius = UDim.new(0, 8)
+diamondCorner.Parent = diamondSection
+
+local diamondBorder = Instance.new("UIStroke")
+diamondBorder.Color = Color3.fromRGB(70, 70, 80)
+diamondBorder.Thickness = 1
+diamondBorder.Parent = diamondSection
+
+-- Diamond Icon
+local diamondIcon = Instance.new("TextLabel")
+diamondIcon.Size = UDim2.new(0, 30, 0, 25)
+diamondIcon.Position = UDim2.new(0, 10, 0, 8)
+diamondIcon.BackgroundTransparency = 1
+diamondIcon.Text = "💎"
+diamondIcon.TextColor3 = Color3.fromRGB(100, 200, 255)
+diamondIcon.TextScaled = true
+diamondIcon.Font = Enum.Font.Gotham
+diamondIcon.Parent = diamondSection
+
+-- Diamond Count
+local diamondCount = Instance.new("TextLabel")
+diamondCount.Size = UDim2.new(1, -50, 0, 25)
+diamondCount.Position = UDim2.new(0, 45, 0, 8)
+diamondCount.BackgroundTransparency = 1
+diamondCount.Text = "0"
+diamondCount.TextColor3 = Color3.fromRGB(255, 255, 255)
+diamondCount.TextScaled = true
+diamondCount.Font = Enum.Font.GothamBold
+diamondCount.TextXAlignment = Enum.TextXAlignment.Left
+diamondCount.Parent = diamondSection
+
+-- Diamond Label
+local diamondLabel = Instance.new("TextLabel")
+diamondLabel.Size = UDim2.new(1, -10, 0, 20)
+diamondLabel.Position = UDim2.new(0, 5, 0, 35)
+diamondLabel.BackgroundTransparency = 1
+diamondLabel.Text = "DIAMONDS"
+diamondLabel.TextColor3 = Color3.fromRGB(160, 160, 170)
+diamondLabel.TextScaled = true
+diamondLabel.Font = Enum.Font.Gotham
+diamondLabel.Parent = diamondSection
+
+-- Status Section
+local statusSection = Instance.new("Frame")
+statusSection.Size = UDim2.new(0.48, 0, 1, 0)
+statusSection.Position = UDim2.new(0.52, 0, 0, 0)
+statusSection.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+statusSection.BorderSizePixel = 0
+statusSection.Parent = contentFrame
+
+local statusCorner = Instance.new("UICorner")
+statusCorner.CornerRadius = UDim.new(0, 8)
+statusCorner.Parent = statusSection
+
+local statusBorder = Instance.new("UIStroke")
+statusBorder.Color = Color3.fromRGB(70, 70, 80)
+statusBorder.Thickness = 1
+statusBorder.Parent = statusSection
+
+-- Status Text
+local statusText = Instance.new("TextLabel")
+statusText.Size = UDim2.new(1, -10, 0, 25)
+statusText.Position = UDim2.new(0, 5, 0, 8)
+statusText.BackgroundTransparency = 1
+statusText.Text = "LOBBY"
+statusText.TextColor3 = Color3.fromRGB(255, 200, 100)
+statusText.TextScaled = true
+statusText.Font = Enum.Font.GothamBold
+statusText.Parent = statusSection
+
+-- Status Label
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -10, 0, 20)
+statusLabel.Position = UDim2.new(0, 5, 0, 35)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "CURRENT STATUS"
+statusLabel.TextColor3 = Color3.fromRGB(160, 160, 170)
+statusLabel.TextScaled = true
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.Parent = statusSection
+
+-- Dragging functionality
+local dragging = false
+local dragStart = nil
+local startPos = nil
+
+local function updateInput(input)
+    local delta = input.Position - dragStart
+    mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+titleBar.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        updateInput(input)
+    end
+end)
+
+-- Animation functions
+local function animateStatusIndicator()
+    local tween = TweenService:Create(
+        statusIndicator,
+        TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+        {BackgroundTransparency = 0.3}
+    )
+    tween:Play()
+end
+
+local function updateDiamondCount()
+    local success, diamonds = pcall(function()
+        return LocalPlayer:GetAttribute("Diamonds") or 0
+    end)
+    
+    if success and diamonds then
+        -- Animate number change
+        local currentCount = tonumber(diamondCount.Text) or 0
+        if currentCount ~= diamonds then
+            local tween = TweenService:Create(
+                diamondCount,
+                TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                {TextColor3 = Color3.fromRGB(100, 255, 100)}
+            )
+            tween:Play()
+            
+            tween.Completed:Connect(function()
+                local resetTween = TweenService:Create(
+                    diamondCount,
+                    TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                    {TextColor3 = Color3.fromRGB(255, 255, 255)}
+                )
+                resetTween:Play()
+            end)
+        end
+        
+        diamondCount.Text = tostring(diamonds)
+    else
+        diamondCount.Text = "ERROR"
+    end
+end
+
+local function updateStatus()
+    local currentPlaceId = game.PlaceId
+    local autoJoinPlaceId = 79546208627805
+    local chestFinderPlaceId = 126509999114328
+    
+    if currentPlaceId == autoJoinPlaceId then
+        -- Auto Join system status
+        local autoJoinEnabled = _G.AUTO_JOIN_ENABLED and _G.AUTO_JOIN_ENABLED() or false
+        local isProcessing = _G.isProcessing and _G.isProcessing() or false
+        
+        if autoJoinEnabled then
+            if isProcessing then
+                statusText.Text = "JOINING"
+                statusText.TextColor3 = Color3.fromRGB(255, 200, 100)
+                statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 200, 100)
+            else
+                statusText.Text = "AUTO JOIN"
+                statusText.TextColor3 = Color3.fromRGB(100, 200, 255)
+                statusIndicator.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
+            end
+        else
+            statusText.Text = "STOPPED"
+            statusText.TextColor3 = Color3.fromRGB(150, 150, 150)
+            statusIndicator.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
+        end
+        
+    elseif currentPlaceId == chestFinderPlaceId then
+        -- Chest Finder system status
+        local chestEnabled = _G.CHEST_ENABLED and _G.CHEST_ENABLED() or false
+        local isSearching = _G.isSearching and _G.isSearching() or false
+        local isHopping = _G.isHopping and _G.isHopping() or false
+        local gameLoaded = _G.gameLoaded and _G.gameLoaded() or false
+        
+        if not gameLoaded then
+            statusText.Text = "LOADING"
+            statusText.TextColor3 = Color3.fromRGB(200, 200, 100)
+            statusIndicator.BackgroundColor3 = Color3.fromRGB(200, 200, 100)
+        elseif isHopping then
+            statusText.Text = "HOPPING"
+            statusText.TextColor3 = Color3.fromRGB(255, 100, 255)
+            statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 100, 255)
+        elseif chestEnabled then
+            if isSearching then
+                statusText.Text = "HUNTING"
+                statusText.TextColor3 = Color3.fromRGB(255, 150, 100)
+                statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 150, 100)
+            else
+                statusText.Text = "SEARCHING"
+                statusText.TextColor3 = Color3.fromRGB(100, 255, 150)
+                statusIndicator.BackgroundColor3 = Color3.fromRGB(100, 255, 150)
+            end
+        else
+            statusText.Text = "STANDBY"
+            statusText.TextColor3 = Color3.fromRGB(200, 200, 100)
+            statusIndicator.BackgroundColor3 = Color3.fromRGB(200, 200, 100)
+        end
+        
+    else
+        statusText.Text = "UNKNOWN"
+        statusText.TextColor3 = Color3.fromRGB(150, 150, 150)
+        statusIndicator.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
+    end
+end
+
+-- Start animations
+animateStatusIndicator()
+
+-- Update loop
+local connection
+connection = RunService.Heartbeat:Connect(function()
+    updateDiamondCount()
+    updateStatus()
+end)
+
+-- Cleanup function
+local function cleanup()
+    if connection then
+        connection:Disconnect()
+    end
+    if screenGui then
+        screenGui:Destroy()
+    end
+end
+
+-- Export cleanup function
+_G.cleanupStatusUI = cleanup
+
+-- Global toggle function
+_G.toggleStatusUI = function()
+    if screenGui and screenGui.Parent then
+        screenGui.Enabled = not screenGui.Enabled
+    end
+end
+
+-- Auto-hide/show based on game
+spawn(function()
+    while screenGui and screenGui.Parent do
+        local currentPlaceId = game.PlaceId
+        if currentPlaceId == 79546208627805 or currentPlaceId == 126509999114328 then
+            screenGui.Enabled = true
+        else
+            screenGui.Enabled = false
+        end
+        wait(2)
+    end
+end)
