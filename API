@@ -71,9 +71,61 @@ local function getHttpFunction()
 end
 
 -- ======================================
--- DIAMOND DETECTION SYSTEM
+-- DIAMOND DETECTION SYSTEM (Enhanced)
 -- ======================================
+local diamondCache = {
+    lastValidCount = 0,
+    lastDetectionTime = 0,
+    detectionHistory = {},
+    stableCount = 0
+}
+
+-- เพิ่มผลลัพธ์ไปยัง history
+local function addToHistory(count)
+    table.insert(diamondCache.detectionHistory, {
+        count = count,
+        time = os.time()
+    })
+    
+    -- เก็บแค่ 10 ค่าล่าสุด
+    if #diamondCache.detectionHistory > 10 then
+        table.remove(diamondCache.detectionHistory, 1)
+    end
+end
+
+-- หาค่า diamonds ที่เสถียร
+local function getStableDiamondCount()
+    if #diamondCache.detectionHistory < 3 then
+        return diamondCache.lastValidCount
+    end
+    
+    -- นับจำนวนแต่ละค่าในช่วง 30 วินาทีล่าสุด
+    local recentCounts = {}
+    local currentTime = os.time()
+    
+    for _, entry in pairs(diamondCache.detectionHistory) do
+        if currentTime - entry.time <= 30 then -- ช่วง 30 วินาทีล่าสุด
+            recentCounts[entry.count] = (recentCounts[entry.count] or 0) + 1
+        end
+    end
+    
+    -- หาค่าที่ปรากฏบ่อยที่สุด
+    local mostFrequent = diamondCache.lastValidCount
+    local maxCount = 0
+    
+    for count, frequency in pairs(recentCounts) do
+        if frequency > maxCount and count > 0 then
+            maxCount = frequency
+            mostFrequent = count
+        end
+    end
+    
+    return mostFrequent
+end
+
 local function getCurrentDiamonds()
+    local detectedCount = 0
+    
     local success, count = pcall(function()
         local player = LocalPlayer
         
@@ -123,36 +175,26 @@ local function getCurrentDiamonds()
             end
         end
         
-        -- Method 4: PlayerGui Text Scanning (ช้าที่สุด)
-        local playerGui = player:FindFirstChild("PlayerGui")
-        if playerGui then
-            for _, gui in pairs(playerGui:GetDescendants()) do
-                if gui:IsA("TextLabel") or gui:IsA("TextButton") then
-                    local text = gui.Text:lower()
-                    if string.find(text, "diamond") or string.find(text, "gem") or string.find(text, "money") or string.find(text, "cash") then
-                        -- หาตัวเลขในข้อความ
-                        local numbers = {}
-                        for number in string.gmatch(gui.Text, "%d+") do
-                            local num = tonumber(number)
-                            if num and num >= 0 and num < 999999999 then
-                                table.insert(numbers, num)
-                            end
-                        end
-                        
-                        if #numbers > 0 then
-                            return math.max(unpack(numbers))
-                        end
-                    end
-                end
-            end
-        end
-        
         return 0
     end)
     
-    local result = success and count or 0
-    lastDetectedDiamonds = result
-    return result
+    detectedCount = success and count or 0
+    
+    -- เพิ่มไปยัง history
+    addToHistory(detectedCount)
+    
+    -- ใช้ค่าที่เสถียร
+    local stableCount = getStableDiamondCount()
+    
+    -- อัปเดตค่าที่ใช้
+    if stableCount > diamondCache.lastValidCount or detectedCount > stableCount then
+        diamondCache.lastValidCount = math.max(stableCount, detectedCount)
+    end
+    
+    diamondCache.lastDetectionTime = os.time()
+    lastDetectedDiamonds = diamondCache.lastValidCount
+    
+    return diamondCache.lastValidCount
 end
 
 -- ======================================
