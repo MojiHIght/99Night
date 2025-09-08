@@ -1,6 +1,6 @@
--- Moji Hub API Integration System
--- Version: 2.0.0
--- Description: ระบบส่งข้อมูลไปยัง Dashboard API
+-- Moji Hub Smart API Integration System
+-- Version: 3.0.0
+-- Description: ระบบตรวจจับและส่งข้อมูลอัตโนมัติไปยัง Dashboard API
 -- GitHub: https://github.com/MojiHIght/99Night
 
 -- ======================================
@@ -12,15 +12,29 @@ local API_CONFIG = {
     HEALTH_ENDPOINT = "http://localhost:3000/api/health",
     ENABLE_LOGGING = true,
     RETRY_ATTEMPTS = 3,
-    UPDATE_INTERVAL = 10, -- วินาที
+    UPDATE_INTERVAL = 8, -- วินาที
+    DETECTION_INTERVAL = 5, -- วินาที (ตรวจจับสถานะ)
     GLOBAL_UPDATE_INTERVAL = 30 -- วินาที
 }
+
+-- ======================================
+-- GAME CONFIGURATION
+-- ======================================
+local PLACE_IDS = {
+    AUTO_JOIN = 79546208627805,
+    CHEST_FINDER = 126509999114328
+}
+
+local CURRENT_PLACE_ID = game.PlaceId
 
 -- ======================================
 -- SERVICES
 -- ======================================
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportService = game:GetService("TeleportService")
 local LocalPlayer = Players.LocalPlayer
 
 -- ======================================
@@ -29,6 +43,9 @@ local LocalPlayer = Players.LocalPlayer
 local isAPIEnabled = true
 local lastUpdateTime = 0
 local updateLoopActive = false
+local detectionLoopActive = false
+local currentDetectedStatus = "Unknown"
+local lastDetectedDiamonds = 0
 
 -- ======================================
 -- HTTP FUNCTION DETECTION
@@ -60,7 +77,7 @@ local function getCurrentDiamonds()
     local success, count = pcall(function()
         local player = LocalPlayer
         
-        -- Method 1: leaderstats (แนะนำ)
+        -- Method 1: leaderstats (วิธีที่ดีที่สุด)
         local leaderstats = player:FindFirstChild("leaderstats")
         if leaderstats then
             local diamondStats = {
@@ -70,13 +87,14 @@ local function getCurrentDiamonds()
                 leaderstats:FindFirstChild("Gems"),
                 leaderstats:FindFirstChild("gems"),
                 leaderstats:FindFirstChild("Money"),
-                leaderstats:FindFirstChild("Cash")
+                leaderstats:FindFirstChild("Cash"),
+                leaderstats:FindFirstChild("Coins")
             }
             
             for _, stat in pairs(diamondStats) do
                 if stat and stat.Value then
                     local value = tonumber(stat.Value)
-                    if value and value > 0 then
+                    if value and value >= 0 then
                         return value
                     end
                 end
@@ -85,12 +103,12 @@ local function getCurrentDiamonds()
         
         -- Method 2: Player Attributes
         local attributes = {
-            "Diamonds", "diamonds", "Diamond", "Gems", "gems", "Money", "Cash"
+            "Diamonds", "diamonds", "Diamond", "Gems", "gems", "Money", "Cash", "Coins"
         }
         
         for _, attr in pairs(attributes) do
             local value = player:GetAttribute(attr)
-            if value and tonumber(value) and tonumber(value) > 0 then
+            if value and tonumber(value) and tonumber(value) >= 0 then
                 return tonumber(value)
             end
         end
@@ -99,30 +117,29 @@ local function getCurrentDiamonds()
         if player.Character then
             for _, attr in pairs(attributes) do
                 local value = player.Character:GetAttribute(attr)
-                if value and tonumber(value) and tonumber(value) > 0 then
+                if value and tonumber(value) and tonumber(value) >= 0 then
                     return tonumber(value)
                 end
             end
         end
         
-        -- Method 4: PlayerGui Text Scanning
+        -- Method 4: PlayerGui Text Scanning (ช้าที่สุด)
         local playerGui = player:FindFirstChild("PlayerGui")
         if playerGui then
             for _, gui in pairs(playerGui:GetDescendants()) do
                 if gui:IsA("TextLabel") or gui:IsA("TextButton") then
                     local text = gui.Text:lower()
-                    if string.find(text, "diamond") or string.find(text, "gem") or string.find(text, "money") then
+                    if string.find(text, "diamond") or string.find(text, "gem") or string.find(text, "money") or string.find(text, "cash") then
                         -- หาตัวเลขในข้อความ
                         local numbers = {}
                         for number in string.gmatch(gui.Text, "%d+") do
                             local num = tonumber(number)
-                            if num and num > 0 and num < 999999999 then -- ป้องกันตัวเลขใหญ่เกินไป
+                            if num and num >= 0 and num < 999999999 then
                                 table.insert(numbers, num)
                             end
                         end
                         
                         if #numbers > 0 then
-                            -- คืนค่าตัวเลขที่ใหญ่ที่สุด (น่าจะเป็น diamonds)
                             return math.max(unpack(numbers))
                         end
                     end
@@ -130,19 +147,122 @@ local function getCurrentDiamonds()
             end
         end
         
-        -- Method 5: DataStores (experimental)
-        local success2, result = pcall(function()
-            local dataStoreService = game:GetService("DataStoreService")
-            if dataStoreService then
-                -- ลองหาข้อมูลจาก DataStore (อาจไม่ทำงานใน executor บางตัว)
-                return 0
-            end
-        end)
-        
         return 0
     end)
     
-    return success and count or 0
+    local result = success and count or 0
+    lastDetectedDiamonds = result
+    return result
+end
+
+-- ======================================
+-- SMART STATUS DETECTION
+-- ======================================
+
+-- ตรวจจับสถานะสำหรับ Auto Join Place
+local function detectAutoJoinStatus()
+    local success, status = pcall(function()
+        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+        if not playerGui then return "Loading" end
+        
+        -- ตรวจสอบ Lobby Create Screen
+        local interface = playerGui:FindFirstChild("Interface")
+        if interface then
+            local lobbyCreate = interface:FindFirstChild("LobbyCreate")
+            if lobbyCreate and lobbyCreate.Visible then
+                return "Creating Room"
+            end
+        end
+        
+        -- ตรวจสอบ Loading/Teleport screens
+        local loadingScreens = {"LoadingScreen", "Loading", "TeleportGui", "LoadingGui"}
+        for _, screenName in pairs(loadingScreens) do
+            local screen = playerGui:FindFirstChild(screenName)
+            if screen and screen.Visible then
+                return "Joining"
+            end
+        end
+        
+        -- ตรวจสอบ RemoteEvents
+        if ReplicatedStorage:FindFirstChild("RemoteEvents") then
+            local remoteEvents = ReplicatedStorage.RemoteEvents
+            if remoteEvents:FindFirstChild("TeleportEvent") then
+                return "Auto Join"
+            end
+        end
+        
+        return "Standby"
+    end)
+    
+    return success and status or "Unknown"
+end
+
+-- ตรวจจับสถานะสำหรับ Chest Finder Place
+local function detectChestFinderStatus()
+    local success, status = pcall(function()
+        local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+        if not playerGui then return "Loading" end
+        
+        -- ตรวจสอบ Loading screens
+        local loadingScreens = {"LoadingScreen", "Loading", "TeleportGui", "LoadingGui"}
+        for _, screenName in pairs(loadingScreens) do
+            local screen = playerGui:FindFirstChild(screenName)
+            if screen and screen.Visible then
+                return "Hopping"
+            end
+        end
+        
+        -- ตรวจสอบ Game Structure
+        if not Workspace:FindFirstChild("Items") then
+            return "Loading"
+        end
+        
+        if not ReplicatedStorage:FindFirstChild("RemoteEvents") then
+            return "Loading"
+        end
+        
+        local remoteEvents = ReplicatedStorage.RemoteEvents
+        if not remoteEvents:FindFirstChild("RequestTakeDiamonds") then
+            return "Loading"
+        end
+        
+        -- ตรวจสอบ Character
+        if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            return "Loading"
+        end
+        
+        -- ตรวจสอบ Stronghold Chest
+        if Workspace.Items:FindFirstChild("Stronghold Diamond Chest") then
+            return "Hunting"
+        end
+        
+        -- ตรวจสอบ Diamonds ใน workspace
+        local diamondCount = 0
+        for _, child in pairs(Workspace.Items:GetChildren()) do
+            if child.Name == "Diamond" then
+                diamondCount = diamondCount + 1
+            end
+        end
+        
+        if diamondCount > 0 then
+            return "Hunting"
+        end
+        
+        return "Searching"
+    end)
+    
+    return success and status or "Unknown"
+end
+
+-- ตรวจจับสถานะอัตโนมัติ
+local function detectCurrentStatus()
+    if CURRENT_PLACE_ID == PLACE_IDS.AUTO_JOIN then
+        return detectAutoJoinStatus()
+    elseif CURRENT_PLACE_ID == PLACE_IDS.CHEST_FINDER then
+        return detectChestFinderStatus()
+    else
+        return "Standby"
+    end
 end
 
 -- ======================================
@@ -151,9 +271,6 @@ end
 local function sendRequest(url, data, method)
     local requestFunc = getHttpFunction()
     if not requestFunc then
-        if API_CONFIG.ENABLE_LOGGING then
-            warn("[API] ไม่พบ HTTP request function ที่รองรับ")
-        end
         return false, "No HTTP function available"
     end
     
@@ -163,7 +280,7 @@ local function sendRequest(url, data, method)
             Method = method or "POST",
             Headers = {
                 ["Content-Type"] = "application/json",
-                ["User-Agent"] = "Roblox-MojiHub/2.0.0",
+                ["User-Agent"] = "Roblox-MojiHub/3.0.0",
                 ["Accept"] = "application/json"
             }
         }
@@ -188,43 +305,6 @@ local function sendRequest(url, data, method)
     return result
 end
 
--- ======================================
--- API FUNCTIONS
--- ======================================
-
--- ทดสอบการเชื่อมต่อ API
-local function testAPIConnection()
-    local testData = {
-        username = LocalPlayer.Name,
-        status = "Testing Connection",
-        diamonds = 0,
-        lastUpdated = os.time(),
-        test = true,
-        version = "2.0.0"
-    }
-    
-    local success, response = sendRequest(API_CONFIG.TEST_ENDPOINT, testData)
-    
-    if success and API_CONFIG.ENABLE_LOGGING then
-        print("[API] การทดสอบเชื่อมต่อสำเร็จ")
-    elseif not success and API_CONFIG.ENABLE_LOGGING then
-        warn("[API] การทดสอบเชื่อมต่อล้มเหลว:", response)
-    end
-    
-    return success
-end
-
--- ตรวจสอบสุขภาพของ server
-local function checkServerHealth()
-    local success, response = sendRequest(API_CONFIG.HEALTH_ENDPOINT, nil, "GET")
-    
-    if success and API_CONFIG.ENABLE_LOGGING then
-        print("[API] Server ทำงานปกติ")
-    end
-    
-    return success
-end
-
 -- ส่งข้อมูลผู้ใช้ไปยัง API
 local function sendUserData(status, diamonds, extraData)
     extraData = extraData or {}
@@ -237,10 +317,10 @@ local function sendUserData(status, diamonds, extraData)
         timestamp = os.date("%Y-%m-%dT%H:%M:%SZ"),
         placeId = game.PlaceId,
         jobId = game.JobId,
-        version = "2.0.0"
+        version = "3.0.0",
+        autoDetected = true
     }
     
-    -- รวมข้อมูลเพิ่มเติม
     for key, value in pairs(extraData) do
         data[key] = value
     end
@@ -261,78 +341,112 @@ local function sendUserData(status, diamonds, extraData)
     return success
 end
 
+-- ทดสอบการเชื่อมต่อ API
+local function testAPIConnection()
+    local testData = {
+        username = LocalPlayer.Name,
+        status = "Testing Connection",
+        diamonds = 0,
+        lastUpdated = os.time(),
+        test = true,
+        version = "3.0.0"
+    }
+    
+    local success, response = sendRequest(API_CONFIG.TEST_ENDPOINT, testData)
+    
+    if success and API_CONFIG.ENABLE_LOGGING then
+        print("[API] การทดสอบเชื่อมต่อสำเร็จ")
+    elseif not success and API_CONFIG.ENABLE_LOGGING then
+        warn("[API] การทดสอบเชื่อมต่อล้มเหลว:", response)
+    end
+    
+    return success
+end
+
 -- อัปเดตสถานะ (ฟังก์ชันหลัก)
 local function updateStatus(status, diamonds, extraData)
     if not isAPIEnabled then return false end
     
     local currentDiamonds = diamonds or getCurrentDiamonds()
     
-    -- ลองส่งหลายครั้งหากล้มเหลว
     for attempt = 1, API_CONFIG.RETRY_ATTEMPTS do
         local success = sendUserData(status, currentDiamonds, extraData)
         
         if success then
+            currentDetectedStatus = status
             return true
         else
             if attempt < API_CONFIG.RETRY_ATTEMPTS then
-                if API_CONFIG.ENABLE_LOGGING then
-                    warn("[API] ลองส่งใหม่ครั้งที่", attempt + 1, "/", API_CONFIG.RETRY_ATTEMPTS)
-                end
-                wait(1) -- รอ 1 วินาทีก่อนลองใหม่
+                wait(1)
             end
         end
-    end
-    
-    if API_CONFIG.ENABLE_LOGGING then
-        warn("[API] ส่งข้อมูลล้มเหลวหลังจากลอง", API_CONFIG.RETRY_ATTEMPTS, "ครั้ง")
     end
     
     return false
 end
 
 -- ======================================
--- AUTO UPDATE SYSTEM
+-- AUTO DETECTION SYSTEM
 -- ======================================
-local currentStatus = "Unknown"
-local statusUpdateCallback = nil
 
--- เริ่มระบบอัปเดตอัตโนมัติ
-local function startAutoUpdate(interval)
-    interval = interval or API_CONFIG.UPDATE_INTERVAL
-    updateLoopActive = true
+-- เริ่มระบบตรวจจับสถานะอัตโนมัติ
+local function startStatusDetection()
+    detectionLoopActive = true
     
     spawn(function()
-        while updateLoopActive do
-            if isAPIEnabled and currentStatus then
-                updateStatus(currentStatus)
+        while detectionLoopActive do
+            if isAPIEnabled then
+                local detectedStatus = detectCurrentStatus()
+                local currentDiamonds = getCurrentDiamonds()
+                
+                -- ส่งข้อมูลถ้าสถานะเปลี่ยน หรือ diamonds เปลี่ยน
+                if detectedStatus ~= currentDetectedStatus or currentDiamonds ~= lastDetectedDiamonds then
+                    updateStatus(detectedStatus, currentDiamonds)
+                    currentDetectedStatus = detectedStatus
+                    lastDetectedDiamonds = currentDiamonds
+                end
             end
-            wait(interval)
+            wait(API_CONFIG.DETECTION_INTERVAL)
         end
     end)
     
     if API_CONFIG.ENABLE_LOGGING then
-        print("[API] เริ่มระบบอัปเดตอัตโนมัติ (ทุก", interval, "วินาที)")
+        print("[API] เริ่มระบบตรวจจับสถานะอัตโนมัติ (ทุก", API_CONFIG.DETECTION_INTERVAL, "วินาที)")
     end
 end
 
--- หยุดระบบอัปเดตอัตโนมัติ
-local function stopAutoUpdate()
+-- หยุดระบบตรวจจับสถานะ
+local function stopStatusDetection()
+    detectionLoopActive = false
+    if API_CONFIG.ENABLE_LOGGING then
+        print("[API] หยุดระบบตรวจจับสถานะ")
+    end
+end
+
+-- เริ่มระบบอัปเดตปกติ
+local function startRegularUpdate()
+    updateLoopActive = true
+    
+    spawn(function()
+        while updateLoopActive do
+            if isAPIEnabled then
+                local status = currentDetectedStatus ~= "Unknown" and currentDetectedStatus or detectCurrentStatus()
+                updateStatus(status)
+            end
+            wait(API_CONFIG.UPDATE_INTERVAL)
+        end
+    end)
+    
+    if API_CONFIG.ENABLE_LOGGING then
+        print("[API] เริ่มระบบอัปเดตปกติ (ทุก", API_CONFIG.UPDATE_INTERVAL, "วินาที)")
+    end
+end
+
+-- หยุดระบบอัปเดตปกติ
+local function stopRegularUpdate()
     updateLoopActive = false
     if API_CONFIG.ENABLE_LOGGING then
-        print("[API] หยุดระบบอัปเดตอัตโนมัติ")
-    end
-end
-
--- ตั้งค่า callback สำหรับ status update
-local function setStatusCallback(callback)
-    statusUpdateCallback = callback
-end
-
--- อัปเดตสถานะปัจจุบัน
-local function setCurrentStatus(status)
-    currentStatus = status
-    if statusUpdateCallback then
-        statusUpdateCallback(status)
+        print("[API] หยุดระบบอัปเดตปกติ")
     end
 end
 
@@ -342,15 +456,18 @@ end
 
 -- รีเซ็ตระบบ API
 local function resetAPI()
-    stopAutoUpdate()
-    currentStatus = "Unknown"
+    stopStatusDetection()
+    stopRegularUpdate()
+    currentDetectedStatus = "Unknown"
+    lastDetectedDiamonds = 0
     lastUpdateTime = 0
     
     spawn(function()
         wait(2)
         if testAPIConnection() then
             updateStatus("Connected")
-            startAutoUpdate()
+            startStatusDetection()
+            startRegularUpdate()
         else
             updateStatus("Offline")
         end
@@ -369,14 +486,18 @@ local function toggleAPI(enabled)
         if API_CONFIG.ENABLE_LOGGING then
             print("[API] เปิดใช้งานระบบ API")
         end
+        if not detectionLoopActive then
+            startStatusDetection()
+        end
         if not updateLoopActive then
-            startAutoUpdate()
+            startRegularUpdate()
         end
     else
         if API_CONFIG.ENABLE_LOGGING then
             print("[API] ปิดใช้งานระบบ API")
         end
-        stopAutoUpdate()
+        stopStatusDetection()
+        stopRegularUpdate()
     end
 end
 
@@ -384,11 +505,14 @@ end
 local function getAPIStatus()
     return {
         enabled = isAPIEnabled,
-        autoUpdateActive = updateLoopActive,
-        currentStatus = currentStatus,
+        detectionActive = detectionLoopActive,
+        updateActive = updateLoopActive,
+        currentStatus = currentDetectedStatus,
         lastUpdateTime = lastUpdateTime,
-        currentDiamonds = getCurrentDiamonds(),
-        httpFunctionAvailable = getHttpFunction() ~= nil
+        currentDiamonds = lastDetectedDiamonds,
+        httpFunctionAvailable = getHttpFunction() ~= nil,
+        placeId = CURRENT_PLACE_ID,
+        supportedPlace = CURRENT_PLACE_ID == PLACE_IDS.AUTO_JOIN or CURRENT_PLACE_ID == PLACE_IDS.CHEST_FINDER
     }
 end
 
@@ -405,24 +529,87 @@ local function setConfig(key, value)
 end
 
 -- ======================================
+-- PLACE-SPECIFIC MONITORING
+-- ======================================
+
+-- เฝ้าดู Events สำหรับ Auto Join
+local function monitorAutoJoinEvents()
+    if CURRENT_PLACE_ID ~= PLACE_IDS.AUTO_JOIN then return end
+    
+    spawn(function()
+        -- เฝ้าดู PlayerGui changes
+        local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+        
+        playerGui.DescendantAdded:Connect(function(descendant)
+            if descendant.Name == "LobbyCreate" and descendant.Visible then
+                currentDetectedStatus = "Creating Room"
+                updateStatus(currentDetectedStatus)
+            elseif descendant.Name == "LoadingScreen" or descendant.Name == "TeleportGui" then
+                currentDetectedStatus = "Joining"
+                updateStatus(currentDetectedStatus)
+            end
+        end)
+    end)
+end
+
+-- เฝ้าดู Events สำหรับ Chest Finder
+local function monitorChestFinderEvents()
+    if CURRENT_PLACE_ID ~= PLACE_IDS.CHEST_FINDER then return end
+    
+    spawn(function()
+        -- เฝ้าดู Workspace changes
+        if Workspace:FindFirstChild("Items") then
+            local items = Workspace.Items
+            
+            items.ChildAdded:Connect(function(child)
+                if child.Name == "Stronghold Diamond Chest" then
+                    currentDetectedStatus = "Hunting"
+                    updateStatus(currentDetectedStatus)
+                elseif child.Name == "Diamond" then
+                    currentDetectedStatus = "Hunting"
+                    updateStatus(currentDetectedStatus)
+                end
+            end)
+            
+            items.ChildRemoved:Connect(function(child)
+                if child.Name == "Diamond" then
+                    -- อัปเดต diamonds count
+                    spawn(function()
+                        wait(0.5) -- รอให้การเก็บเสร็จ
+                        updateStatus(currentDetectedStatus)
+                    end)
+                end
+            end)
+        end
+        
+        -- เฝ้าดู Teleport events
+        TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, errorMessage)
+            if player == LocalPlayer then
+                currentDetectedStatus = "Searching"
+                updateStatus(currentDetectedStatus)
+            end
+        end)
+    end)
+end
+
+-- ======================================
 -- INITIALIZATION
 -- ======================================
 local function initializeAPI()
     if API_CONFIG.ENABLE_LOGGING then
         print("=================================")
-        print("🚀 Moji Hub API System v2.0.0")
+        print("🚀 Moji Hub Smart API System v3.0.0")
         print("👤 ผู้เล่น:", LocalPlayer.Name)
         print("🏠 Place ID:", game.PlaceId)
-        print("🔧 Job ID:", game.JobId)
+        print("🎯 Supported:", CURRENT_PLACE_ID == PLACE_IDS.AUTO_JOIN and "Auto Join" or CURRENT_PLACE_ID == PLACE_IDS.CHEST_FINDER and "Chest Finder" or "Standby Mode")
         print("=================================")
     end
     
-    -- ทดสอบการเชื่อมต่อเริ่มต้น
+    -- ตั้งค่าเริ่มต้น
+    currentDetectedStatus = "Loading"
+    
     spawn(function()
-        wait(2) -- รอให้เกมโหลด
-        
-        updateStatus("Loading")
-        wait(1)
+        wait(3) -- รอให้เกมโหลด
         
         if testAPIConnection() then
             updateStatus("Connected")
@@ -433,39 +620,43 @@ local function initializeAPI()
             updateStatus("Offline")
             if API_CONFIG.ENABLE_LOGGING then
                 warn("[API] ไม่สามารถเชื่อมต่อ API ได้")
-                print("[API] กรุณาตรวจสอบ:")
-                print("   1. เซิร์ฟเวอร์ Node.js ทำงานอยู่หรือไม่")
-                print("   2. พอร์ต 3000 เปิดอยู่หรือไม่")
-                print("   3. Executor รองรับ HTTP requests หรือไม่")
             end
         end
         
-        -- เริ่มระบบอัปเดตอัตโนมัติ
-        startAutoUpdate()
+        wait(2)
+        
+        -- เริ่มระบบทั้งหมด
+        startStatusDetection()
+        startRegularUpdate()
+        monitorAutoJoinEvents()
+        monitorChestFinderEvents()
+        
+        -- ตรวจจับสถานะเริ่มต้น
+        local initialStatus = detectCurrentStatus()
+        updateStatus(initialStatus)
+        currentDetectedStatus = initialStatus
     end)
 end
 
 -- ======================================
 -- GLOBAL EXPORTS
 -- ======================================
-
--- ส่งออกฟังก์ชันสำคัญไปยัง _G
 _G.MojiAPI = {
     -- Core functions
     updateStatus = updateStatus,
     getCurrentDiamonds = getCurrentDiamonds,
     testConnection = testAPIConnection,
-    checkHealth = checkServerHealth,
+    detectStatus = detectCurrentStatus,
     
     -- Control functions
-    startAutoUpdate = startAutoUpdate,
-    stopAutoUpdate = stopAutoUpdate,
+    startDetection = startStatusDetection,
+    stopDetection = stopStatusDetection,
+    startUpdate = startRegularUpdate,
+    stopUpdate = stopRegularUpdate,
     resetAPI = resetAPI,
     toggleAPI = toggleAPI,
     
     -- Status functions
-    setCurrentStatus = setCurrentStatus,
-    setStatusCallback = setStatusCallback,
     getAPIStatus = getAPIStatus,
     
     -- Configuration
@@ -487,19 +678,20 @@ _G.testAPI = testAPIConnection
 -- ======================================
 initializeAPI()
 
--- Global status update loop (backup)
+-- Global backup update loop
 spawn(function()
     while true do
         wait(API_CONFIG.GLOBAL_UPDATE_INTERVAL)
         
-        if isAPIEnabled and currentStatus and currentStatus ~= "Unknown" then
-            updateStatus(currentStatus)
+        if isAPIEnabled then
+            local status = currentDetectedStatus ~= "Unknown" and currentDetectedStatus or detectCurrentStatus()
+            updateStatus(status)
         end
     end
 end)
 
 if API_CONFIG.ENABLE_LOGGING then
-    print("[API] ระบบ API พร้อมใช้งาน")
-    print("[API] ใช้ _G.MojiAPI เพื่อเข้าถึงฟังก์ชัน")
+    print("[API] ระบบ Smart API พร้อมใช้งาน")
+    print("[API] ระบบจะตรวจจับสถานะอัตโนมัติ")
     print("=================================")
 end
