@@ -1,52 +1,76 @@
--- Modern Status UI for Roblox Scripts
--- Shows Diamond count and current status
-
+-- 💎 Moji Hub - Fixed Shadow UI
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
+-- Remove existing GUI
+if PlayerGui:FindFirstChild("MojiHubUI") then
+    PlayerGui:FindFirstChild("MojiHubUI"):Destroy()
+end
+
 -- Create main ScreenGui
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "StatusUI"
+screenGui.Name = "MojiHubUI"
 screenGui.Parent = PlayerGui
 screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.DisplayOrder = 999
 
--- Main Frame
+-- Main Frame (ปรับขนาดให้สมส่วน)
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, 280, 0, 120)
-mainFrame.Position = UDim2.new(0.5, -140, 0.5, -60)
-mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+mainFrame.Position = UDim2.new(0.5, -140, 0.15, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 15, 45)
+mainFrame.BackgroundTransparency = 0.1
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
 
--- Create rounded corners
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 12)
-corner.Parent = mainFrame
+-- Shadow Frame (แก้ไขให้ไม่ล้น)
+local shadowFrame = Instance.new("Frame")
+shadowFrame.Name = "ShadowFrame"
+shadowFrame.Size = UDim2.new(0, 280, 0, 120)
+shadowFrame.Position = UDim2.new(0.5, -139, 0.15, 1)
+shadowFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+shadowFrame.BackgroundTransparency = 0.85
+shadowFrame.BorderSizePixel = 0
+shadowFrame.ZIndex = mainFrame.ZIndex - 1
+shadowFrame.Parent = screenGui
 
--- Create gradient background
+local shadowCorner = Instance.new("UICorner")
+shadowCorner.CornerRadius = UDim.new(0, 12)
+shadowCorner.Parent = shadowFrame
+
+-- Main Frame Corner
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 12)
+mainCorner.Parent = mainFrame
+
+-- Gradient Background
 local gradient = Instance.new("UIGradient")
 gradient.Color = ColorSequence.new{
-    ColorSequenceKeypoint.new(0.0, Color3.fromRGB(35, 35, 40)),
-    ColorSequenceKeypoint.new(1.0, Color3.fromRGB(25, 25, 30))
+    ColorSequenceKeypoint.new(0.0, Color3.fromRGB(45, 25, 75)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(35, 20, 60)),
+    ColorSequenceKeypoint.new(1.0, Color3.fromRGB(25, 15, 45))
 }
-gradient.Rotation = 45
+gradient.Rotation = 135
 gradient.Parent = mainFrame
 
--- Create border effect
+-- Border Effect
 local border = Instance.new("UIStroke")
-border.Color = Color3.fromRGB(60, 60, 70)
+border.Color = Color3.fromRGB(120, 80, 160)
 border.Thickness = 1
+border.Transparency = 0.4
 border.Parent = mainFrame
 
--- Title Bar
+-- Title Bar (ปรับขนาดให้สมส่วน)
 local titleBar = Instance.new("Frame")
 titleBar.Size = UDim2.new(1, 0, 0, 35)
 titleBar.Position = UDim2.new(0, 0, 0, 0)
-titleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+titleBar.BackgroundColor3 = Color3.fromRGB(40, 25, 65)
+titleBar.BackgroundTransparency = 0.2
 titleBar.BorderSizePixel = 0
 titleBar.Parent = mainFrame
 
@@ -54,30 +78,44 @@ local titleCorner = Instance.new("UICorner")
 titleCorner.CornerRadius = UDim.new(0, 12)
 titleCorner.Parent = titleBar
 
--- Fix title bar corners
+-- Fix title bar bottom corners
 local titleFix = Instance.new("Frame")
 titleFix.Size = UDim2.new(1, 0, 0, 12)
 titleFix.Position = UDim2.new(0, 0, 1, -12)
-titleFix.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+titleFix.BackgroundColor3 = Color3.fromRGB(40, 25, 65)
+titleFix.BackgroundTransparency = 0.2
 titleFix.BorderSizePixel = 0
 titleFix.Parent = titleBar
 
--- Title Text
+-- Title Text (ปรับขนาด)
 local titleText = Instance.new("TextLabel")
-titleText.Size = UDim2.new(1, -40, 1, 0)
+titleText.Size = UDim2.new(0, 90, 1, 0)
 titleText.Position = UDim2.new(0, 15, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "Moji Hub"
-titleText.TextColor3 = Color3.fromRGB(220, 220, 230)
-titleText.TextScaled = true
+titleText.Text = "MOJI HUB"
+titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleText.TextSize = 14
 titleText.Font = Enum.Font.GothamBold
+titleText.TextXAlignment = Enum.TextXAlignment.Left
 titleText.Parent = titleBar
 
--- Status Indicator
+-- Subtitle (ปรับขนาด)
+local subtitleText = Instance.new("TextLabel")
+subtitleText.Size = UDim2.new(0, 120, 0, 12)
+subtitleText.Position = UDim2.new(0, 110, 0.5, -6)
+subtitleText.BackgroundTransparency = 1
+subtitleText.Text = "Diamond Collector"
+subtitleText.TextColor3 = Color3.fromRGB(180, 140, 220)
+subtitleText.TextSize = 10
+subtitleText.Font = Enum.Font.Gotham
+subtitleText.TextXAlignment = Enum.TextXAlignment.Left
+subtitleText.Parent = titleBar
+
+-- Status Indicator (ปรับขนาด)
 local statusIndicator = Instance.new("Frame")
-statusIndicator.Size = UDim2.new(0, 8, 0, 8)
-statusIndicator.Position = UDim2.new(1, -20, 0.5, -4)
-statusIndicator.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
+statusIndicator.Size = UDim2.new(0, 10, 0, 10)
+statusIndicator.Position = UDim2.new(1, -20, 0.5, -5)
+statusIndicator.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
 statusIndicator.BorderSizePixel = 0
 statusIndicator.Parent = titleBar
 
@@ -85,18 +123,19 @@ local indicatorCorner = Instance.new("UICorner")
 indicatorCorner.CornerRadius = UDim.new(1, 0)
 indicatorCorner.Parent = statusIndicator
 
--- Content Area
+-- Content Frame (ปรับระยะห่าง)
 local contentFrame = Instance.new("Frame")
 contentFrame.Size = UDim2.new(1, -20, 1, -45)
 contentFrame.Position = UDim2.new(0, 10, 0, 40)
 contentFrame.BackgroundTransparency = 1
 contentFrame.Parent = mainFrame
 
--- Diamond Counter Section
+-- Diamond Section (ปรับขนาด)
 local diamondSection = Instance.new("Frame")
 diamondSection.Size = UDim2.new(0.48, 0, 1, 0)
 diamondSection.Position = UDim2.new(0, 0, 0, 0)
-diamondSection.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+diamondSection.BackgroundColor3 = Color3.fromRGB(15, 10, 30)
+diamondSection.BackgroundTransparency = 0.3
 diamondSection.BorderSizePixel = 0
 diamondSection.Parent = contentFrame
 
@@ -105,49 +144,41 @@ diamondCorner.CornerRadius = UDim.new(0, 8)
 diamondCorner.Parent = diamondSection
 
 local diamondBorder = Instance.new("UIStroke")
-diamondBorder.Color = Color3.fromRGB(70, 70, 80)
-diamondBorder.Thickness = 1
+diamondBorder.Color = Color3.fromRGB(80, 60, 120)
+diamondBorder.Thickness = 0.8
+diamondBorder.Transparency = 0.4
 diamondBorder.Parent = diamondSection
 
--- Diamond Icon
-local diamondIcon = Instance.new("TextLabel")
-diamondIcon.Size = UDim2.new(0, 30, 0, 25)
-diamondIcon.Position = UDim2.new(0, 10, 0, 8)
-diamondIcon.BackgroundTransparency = 1
-diamondIcon.Text = "💎"
-diamondIcon.TextColor3 = Color3.fromRGB(100, 200, 255)
-diamondIcon.TextScaled = true
-diamondIcon.Font = Enum.Font.Gotham
-diamondIcon.Parent = diamondSection
-
--- Diamond Count
+-- Diamond Count (ปรับขนาดและตำแหน่ง)
 local diamondCount = Instance.new("TextLabel")
-diamondCount.Size = UDim2.new(1, -50, 0, 25)
-diamondCount.Position = UDim2.new(0, 45, 0, 8)
+diamondCount.Size = UDim2.new(1, -12, 0, 22)
+diamondCount.Position = UDim2.new(0, 6, 0, 8)
 diamondCount.BackgroundTransparency = 1
 diamondCount.Text = "0"
 diamondCount.TextColor3 = Color3.fromRGB(255, 255, 255)
-diamondCount.TextScaled = true
+diamondCount.TextSize = 18
 diamondCount.Font = Enum.Font.GothamBold
-diamondCount.TextXAlignment = Enum.TextXAlignment.Left
+diamondCount.TextXAlignment = Enum.TextXAlignment.Center
 diamondCount.Parent = diamondSection
 
--- Diamond Label
+-- Diamond Label (ปรับขนาดและตำแหน่ง)
 local diamondLabel = Instance.new("TextLabel")
-diamondLabel.Size = UDim2.new(1, -10, 0, 20)
-diamondLabel.Position = UDim2.new(0, 5, 0, 35)
+diamondLabel.Size = UDim2.new(1, -12, 0, 14)
+diamondLabel.Position = UDim2.new(0, 6, 0, 35)
 diamondLabel.BackgroundTransparency = 1
 diamondLabel.Text = "DIAMONDS"
-diamondLabel.TextColor3 = Color3.fromRGB(160, 160, 170)
-diamondLabel.TextScaled = true
+diamondLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+diamondLabel.TextSize = 9
 diamondLabel.Font = Enum.Font.Gotham
+diamondLabel.TextXAlignment = Enum.TextXAlignment.Center
 diamondLabel.Parent = diamondSection
 
--- Status Section
+-- Status Section (ปรับขนาด)
 local statusSection = Instance.new("Frame")
 statusSection.Size = UDim2.new(0.48, 0, 1, 0)
 statusSection.Position = UDim2.new(0.52, 0, 0, 0)
-statusSection.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+statusSection.BackgroundColor3 = Color3.fromRGB(15, 10, 30)
+statusSection.BackgroundTransparency = 0.3
 statusSection.BorderSizePixel = 0
 statusSection.Parent = contentFrame
 
@@ -156,44 +187,64 @@ statusCorner.CornerRadius = UDim.new(0, 8)
 statusCorner.Parent = statusSection
 
 local statusBorder = Instance.new("UIStroke")
-statusBorder.Color = Color3.fromRGB(70, 70, 80)
-statusBorder.Thickness = 1
+statusBorder.Color = Color3.fromRGB(80, 60, 120)
+statusBorder.Thickness = 0.8
+statusBorder.Transparency = 0.4
 statusBorder.Parent = statusSection
 
--- Status Text
+-- Status Text (ปรับขนาดและตำแหน่ง)
 local statusText = Instance.new("TextLabel")
-statusText.Size = UDim2.new(1, -10, 0, 25)
-statusText.Position = UDim2.new(0, 5, 0, 8)
+statusText.Size = UDim2.new(1, -12, 0, 18)
+statusText.Position = UDim2.new(0, 6, 0, 6)
 statusText.BackgroundTransparency = 1
-statusText.Text = "LOBBY"
-statusText.TextColor3 = Color3.fromRGB(255, 200, 100)
-statusText.TextScaled = true
+statusText.Text = "READY"
+statusText.TextColor3 = Color3.fromRGB(100, 255, 150)
+statusText.TextSize = 14
 statusText.Font = Enum.Font.GothamBold
+statusText.TextXAlignment = Enum.TextXAlignment.Center
 statusText.Parent = statusSection
 
--- Status Label
+-- Status Description (ปรับขนาดและตำแหน่ง)
+local statusDesc = Instance.new("TextLabel")
+statusDesc.Size = UDim2.new(1, -12, 0, 12)
+statusDesc.Position = UDim2.new(0, 6, 0, 26)
+statusDesc.BackgroundTransparency = 1
+statusDesc.Text = "System initialized"
+statusDesc.TextColor3 = Color3.fromRGB(150, 150, 150)
+statusDesc.TextSize = 8
+statusDesc.Font = Enum.Font.Gotham
+statusDesc.TextXAlignment = Enum.TextXAlignment.Center
+statusDesc.Parent = statusSection
+
+-- Status Label (ปรับขนาดและตำแหน่ง)
 local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(1, -10, 0, 20)
-statusLabel.Position = UDim2.new(0, 5, 0, 35)
+statusLabel.Size = UDim2.new(1, -12, 0, 14)
+statusLabel.Position = UDim2.new(0, 6, 0, 40)
 statusLabel.BackgroundTransparency = 1
 statusLabel.Text = "CURRENT STATUS"
-statusLabel.TextColor3 = Color3.fromRGB(160, 160, 170)
-statusLabel.TextScaled = true
+statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+statusLabel.TextSize = 9
 statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextXAlignment = Enum.TextXAlignment.Center
 statusLabel.Parent = statusSection
 
--- Dragging functionality
+-- Variables for control
+local isVisible = true
 local dragging = false
 local dragStart = nil
 local startPos = nil
+local updateConnection = nil
 
+-- Dragging functionality (แก้ไข shadow position)
 local function updateInput(input)
     local delta = input.Position - dragStart
-    mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    local newPosition = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    mainFrame.Position = newPosition
+    shadowFrame.Position = UDim2.new(newPosition.X.Scale, newPosition.X.Offset + 1, newPosition.Y.Scale, newPosition.Y.Offset + 1)
 end
 
 titleBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = true
         dragStart = input.Position
         startPos = mainFrame.Position
@@ -206,157 +257,170 @@ titleBar.InputBegan:Connect(function(input)
     end
 end)
 
-titleBar.InputChanged:Connect(function(input)
-    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         updateInput(input)
     end
 end)
 
--- Animation functions
-local function animateStatusIndicator()
-    local tween = TweenService:Create(
-        statusIndicator,
-        TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-        {BackgroundTransparency = 0.3}
-    )
-    tween:Play()
-end
-
+-- Update diamond count function
 local function updateDiamondCount()
-    local success, diamonds = pcall(function()
-        return LocalPlayer:GetAttribute("Diamonds") or 0
-    end)
-    
-    if success and diamonds then
-        -- Animate number change
-        local currentCount = tonumber(diamondCount.Text) or 0
-        if currentCount ~= diamonds then
-            local tween = TweenService:Create(
-                diamondCount,
-                TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                {TextColor3 = Color3.fromRGB(100, 255, 100)}
-            )
-            tween:Play()
-            
-            tween.Completed:Connect(function()
-                local resetTween = TweenService:Create(
-                    diamondCount,
-                    TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                    {TextColor3 = Color3.fromRGB(255, 255, 255)}
-                )
-                resetTween:Play()
-            end)
-        end
-        
+    pcall(function()
+        local diamonds = LocalPlayer:GetAttribute("Diamonds") or 0
         diamondCount.Text = tostring(diamonds)
+    end)
+end
+
+-- Status animation
+local function animateStatusIndicator(active)
+    if active then
+        local pulseTween = TweenService:Create(statusIndicator,
+            TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+            {BackgroundTransparency = 0.5}
+        )
+        pulseTween:Play()
+        
+        -- Store tween for cleanup
+        statusIndicator:SetAttribute("PulseTween", pulseTween)
     else
-        diamondCount.Text = "ERROR"
+        local existingTween = statusIndicator:GetAttribute("PulseTween")
+        if existingTween then
+            existingTween:Cancel()
+            statusIndicator:SetAttribute("PulseTween", nil)
+        end
+        statusIndicator.BackgroundTransparency = 0
     end
 end
 
-local function updateStatus()
-    local currentPlaceId = game.PlaceId
-    local autoJoinPlaceId = 79546208627805
-    local chestFinderPlaceId = 126509999114328
+-- Global functions
+_G.MojiHubUpdateStatus = function(status, statusType, description)
+    statusType = statusType or "normal"
+    description = description or "System running normally"
     
-    if currentPlaceId == autoJoinPlaceId then
-        -- Auto Join system status
-        local autoJoinEnabled = _G.AUTO_JOIN_ENABLED and _G.AUTO_JOIN_ENABLED() or false
-        local isProcessing = _G.isProcessing and _G.isProcessing() or false
+    statusText.Text = status
+    statusDesc.Text = description
+    
+    -- Status colors and animations
+    local statusConfig = {
+        normal = {color = Color3.fromRGB(0, 255, 100), animate = false},
+        opening = {color = Color3.fromRGB(255, 165, 0), animate = true},
+        hopping = {color = Color3.fromRGB(255, 80, 80), animate = true},
+        collecting = {color = Color3.fromRGB(100, 200, 255), animate = true},
+        error = {color = Color3.fromRGB(255, 50, 50), animate = true}
+    }
+    
+    local config = statusConfig[statusType] or statusConfig.normal
+    statusIndicator.BackgroundColor3 = config.color
+    statusText.TextColor3 = config.color
+    
+    animateStatusIndicator(config.animate)
+end
+
+_G.MojiHubToggle = function()
+    if not screenGui or not screenGui.Parent then return end
+    
+    isVisible = not isVisible
+    
+    if isVisible then
+        -- Show GUI
+        local showTween = TweenService:Create(mainFrame,
+            TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+            {
+                Position = UDim2.new(0.5, -140, 0.15, 0),
+                BackgroundTransparency = 0.1
+            }
+        )
         
-        if autoJoinEnabled then
-            if isProcessing then
-                statusText.Text = "JOINING"
-                statusText.TextColor3 = Color3.fromRGB(255, 200, 100)
-                statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 200, 100)
-            else
-                statusText.Text = "AUTO JOIN"
-                statusText.TextColor3 = Color3.fromRGB(100, 200, 255)
-                statusIndicator.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
-            end
-        else
-            statusText.Text = "STOPPED"
-            statusText.TextColor3 = Color3.fromRGB(150, 150, 150)
-            statusIndicator.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
-        end
+        local showShadowTween = TweenService:Create(shadowFrame,
+            TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+            {Position = UDim2.new(0.5, -139, 0.15, 1)}
+        )
         
-    elseif currentPlaceId == chestFinderPlaceId then
-        -- Chest Finder system status
-        local chestEnabled = _G.CHEST_ENABLED and _G.CHEST_ENABLED() or false
-        local isSearching = _G.isSearching and _G.isSearching() or false
-        local isHopping = _G.isHopping and _G.isHopping() or false
-        local gameLoaded = _G.gameLoaded and _G.gameLoaded() or false
-        
-        if not gameLoaded then
-            statusText.Text = "LOADING"
-            statusText.TextColor3 = Color3.fromRGB(200, 200, 100)
-            statusIndicator.BackgroundColor3 = Color3.fromRGB(200, 200, 100)
-        elseif isHopping then
-            statusText.Text = "HOPPING"
-            statusText.TextColor3 = Color3.fromRGB(255, 100, 255)
-            statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 100, 255)
-        elseif chestEnabled then
-            if isSearching then
-                statusText.Text = "HUNTING"
-                statusText.TextColor3 = Color3.fromRGB(255, 150, 100)
-                statusIndicator.BackgroundColor3 = Color3.fromRGB(255, 150, 100)
-            else
-                statusText.Text = "SEARCHING"
-                statusText.TextColor3 = Color3.fromRGB(100, 255, 150)
-                statusIndicator.BackgroundColor3 = Color3.fromRGB(100, 255, 150)
-            end
-        else
-            statusText.Text = "STANDBY"
-            statusText.TextColor3 = Color3.fromRGB(200, 200, 100)
-            statusIndicator.BackgroundColor3 = Color3.fromRGB(200, 200, 100)
-        end
+        showTween:Play()
+        showShadowTween:Play()
         
     else
-        statusText.Text = "UNKNOWN"
-        statusText.TextColor3 = Color3.fromRGB(150, 150, 150)
-        statusIndicator.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
+        -- Hide GUI
+        local hideTween = TweenService:Create(mainFrame,
+            TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In),
+            {
+                Position = UDim2.new(0.5, -140, -0.2, 0),
+                BackgroundTransparency = 1
+            }
+        )
+        
+        local hideShadowTween = TweenService:Create(shadowFrame,
+            TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In),
+            {Position = UDim2.new(0.5, -139, -0.2, 1)}
+        )
+        
+        hideTween:Play()
+        hideShadowTween:Play()
     end
 end
 
--- Start animations
-animateStatusIndicator()
-
--- Update loop
-local connection
-connection = RunService.Heartbeat:Connect(function()
-    updateDiamondCount()
-    updateStatus()
-end)
-
--- Cleanup function
-local function cleanup()
-    if connection then
-        connection:Disconnect()
-    end
-    if screenGui then
-        screenGui:Destroy()
-    end
+_G.MojiHubShow = function()
+    if not isVisible then _G.MojiHubToggle() end
 end
 
--- Export cleanup function
-_G.cleanupStatusUI = cleanup
+_G.MojiHubHide = function()
+    if isVisible then _G.MojiHubToggle() end
+end
 
--- Global toggle function
-_G.toggleStatusUI = function()
+_G.MojiHubDestroy = function()
     if screenGui and screenGui.Parent then
-        screenGui.Enabled = not screenGui.Enabled
+        if updateConnection then
+            updateConnection:Disconnect()
+        end
+        
+        local destroyTween = TweenService:Create(mainFrame,
+            TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In),
+            {
+                Size = UDim2.new(0, 0, 0, 0),
+                BackgroundTransparency = 1
+            }
+        )
+        
+        destroyTween:Play()
+        destroyTween.Completed:Connect(function()
+            screenGui:Destroy()
+        end)
     end
 end
 
--- Auto-hide/show based on game
-spawn(function()
-    while screenGui and screenGui.Parent do
-        local currentPlaceId = game.PlaceId
-        if currentPlaceId == 79546208627805 or currentPlaceId == 126509999114328 then
-            screenGui.Enabled = true
-        else
-            screenGui.Enabled = false
-        end
-        wait(2)
-    end
+-- Start update loop
+updateConnection = RunService.Heartbeat:Connect(function()
+    updateDiamondCount()
 end)
+
+-- Smooth entrance animation (แก้ไข shadow position)
+mainFrame.Position = UDim2.new(0.5, -140, -0.2, 0)
+shadowFrame.Position = UDim2.new(0.5, -139, -0.2, 1)
+mainFrame.BackgroundTransparency = 1
+
+local entranceTween = TweenService:Create(mainFrame,
+    TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+    {
+        Position = UDim2.new(0.5, -140, 0.15, 0),
+        BackgroundTransparency = 0.1
+    }
+)
+
+local shadowEntranceTween = TweenService:Create(shadowFrame,
+    TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+    {Position = UDim2.new(0.5, -139, 0.15, 1)}
+)
+
+entranceTween:Play()
+shadowEntranceTween:Play()
+
+print("💎 Moji Hub GUI โหลดสำเร็จ!")
+print("📝 ฟังก์ชันที่ใช้ได้:")
+print("   _G.MojiHubUpdateStatus(สถานะ, ประเภท, คำอธิบาย)")
+print("   _G.MojiHubToggle() - สลับซ่อน/แสดง")
+print("   _G.MojiHubShow() - แสดง GUI")
+print("   _G.MojiHubHide() - ซ่อน GUI")
+print("   _G.MojiHubDestroy() - ลบ GUI")
+
+-- Initialize
+_G.MojiHubUpdateStatus("Ready", "normal", "System initialized")
