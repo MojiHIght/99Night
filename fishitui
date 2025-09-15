@@ -29,7 +29,7 @@ local function createQuestStatusUI()
     local questFrame = Instance.new("Frame")
     questFrame.Name = "QuestFrame"
     questFrame.Size = UDim2.new(0, 300, 0, 280)
-    questFrame.Position = UDim2.new(1, 10, 0.5, -140) -- ด้านขวาของ UI หลัก
+    questFrame.Position = UDim2.new(0.5, 200, 0.5, -140) -- ติดด้านขวาของ UI หลัก
     questFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 25)
     questFrame.BorderSizePixel = 0
     questFrame.Parent = screenGui
@@ -144,7 +144,7 @@ local function createRodsStatusUI()
     local rodsFrame = Instance.new("Frame")
     rodsFrame.Name = "RodsFrame"
     rodsFrame.Size = UDim2.new(0, 250, 0, 300)
-    rodsFrame.Position = UDim2.new(0, -260, 0.5, -150) -- ด้านซ้ายของ UI หลัก
+    rodsFrame.Position = UDim2.new(0.5, -630, 0.5, -150) -- ติดด้านซ้ายของ UI หลัก
     rodsFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 25)
     rodsFrame.BorderSizePixel = 0
     rodsFrame.Parent = screenGui
