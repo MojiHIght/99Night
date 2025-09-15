@@ -1,0 +1,632 @@
+-- ========================================
+-- Fishing Script UI System
+-- Separate UI file for GitHub hosting
+-- Connect to main script via _G.FishingScript
+-- ========================================
+
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Get data from main script
+local FishingData = _G.FishingScript
+if not FishingData then
+    warn("⚠️ Main fishing script not found! Please run main script first.")
+    return
+end
+
+-- ========================================
+-- UI CREATION FUNCTIONS
+-- ========================================
+
+-- ฟังก์ชันสำหรับสร้าง Quest Status UI (ด้านขวา)
+local function createQuestStatusUI()
+    local screenGui = PlayerGui:FindFirstChild("AutoFishingStatusMacOS")
+    if not screenGui then return end
+    
+    -- Quest Status Container
+    local questFrame = Instance.new("Frame")
+    questFrame.Name = "QuestFrame"
+    questFrame.Size = UDim2.new(0, 300, 0, 280)
+    questFrame.Position = UDim2.new(1, 10, 0.5, -140) -- ด้านขวาของ UI หลัก
+    questFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 25)
+    questFrame.BorderSizePixel = 0
+    questFrame.Parent = screenGui
+    
+    local questCorner = Instance.new("UICorner")
+    questCorner.CornerRadius = UDim.new(0, 16)
+    questCorner.Parent = questFrame
+    
+    local questStroke = Instance.new("UIStroke")
+    questStroke.Color = Color3.fromRGB(147, 51, 234)
+    questStroke.Thickness = 1
+    questStroke.Transparency = 0.7
+    questStroke.Parent = questFrame
+    
+    -- Quest Title
+    local questTitle = Instance.new("TextLabel")
+    questTitle.Size = UDim2.new(1, -20, 0, 40)
+    questTitle.Position = UDim2.new(0, 10, 0, 10)
+    questTitle.BackgroundTransparency = 1
+    questTitle.Text = "🎯 Quest Progress"
+    questTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    questTitle.TextSize = 16
+    questTitle.Font = Enum.Font.GothamBold
+    questTitle.TextXAlignment = Enum.TextXAlignment.Left
+    questTitle.Parent = questFrame
+    
+    -- ฟังก์ชันสร้าง Quest Item
+    local function createQuestItem(questText, progress, position, questNum)
+        local item = Instance.new("Frame")
+        item.Size = UDim2.new(1, -20, 0, 50)
+        item.Position = position
+        item.BackgroundColor3 = Color3.fromRGB(30, 25, 45)
+        item.BackgroundTransparency = 0.3
+        item.BorderSizePixel = 0
+        item.Parent = questFrame
+        
+        local itemCorner = Instance.new("UICorner")
+        itemCorner.CornerRadius = UDim.new(0, 8)
+        itemCorner.Parent = item
+        
+        -- Progress Bar Background
+        local progressBg = Instance.new("Frame")
+        progressBg.Size = UDim2.new(1, -16, 0, 4)
+        progressBg.Position = UDim2.new(0, 8, 1, -8)
+        progressBg.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+        progressBg.BorderSizePixel = 0
+        progressBg.Parent = item
+        
+        local progressBgCorner = Instance.new("UICorner")
+        progressBgCorner.CornerRadius = UDim.new(0, 2)
+        progressBgCorner.Parent = progressBg
+        
+        -- Progress Bar Fill
+        local progressFill = Instance.new("Frame")
+        progressFill.Name = "ProgressFill"
+        progressFill.Size = UDim2.new(progress / 100, 0, 1, 0)
+        progressFill.Position = UDim2.new(0, 0, 0, 0)
+        progressFill.BackgroundColor3 = progress >= 100 and Color3.fromRGB(34, 197, 94) or Color3.fromRGB(59, 130, 246)
+        progressFill.BorderSizePixel = 0
+        progressFill.Parent = progressBg
+        
+        local progressFillCorner = Instance.new("UICorner")
+        progressFillCorner.CornerRadius = UDim.new(0, 2)
+        progressFillCorner.Parent = progressFill
+        
+        -- Quest Text
+        local questLabel = Instance.new("TextLabel")
+        questLabel.Name = "QuestLabel"
+        questLabel.Size = UDim2.new(1, -16, 0, 30)
+        questLabel.Position = UDim2.new(0, 8, 0, 5)
+        questLabel.BackgroundTransparency = 1
+        questLabel.Text = "Quest " .. questNum .. ": " .. questText:sub(1, 40) .. (questText:len() > 40 and "..." or "")
+        questLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        questLabel.TextSize = 11
+        questLabel.Font = Enum.Font.Gotham
+        questLabel.TextXAlignment = Enum.TextXAlignment.Left
+        questLabel.TextYAlignment = Enum.TextYAlignment.Top
+        questLabel.TextWrapped = true
+        questLabel.Parent = item
+        
+        -- Progress Text
+        local progressLabel = Instance.new("TextLabel")
+        progressLabel.Name = "ProgressLabel"
+        progressLabel.Size = UDim2.new(0, 60, 0, 20)
+        progressLabel.Position = UDim2.new(1, -68, 0, 5)
+        progressLabel.BackgroundTransparency = 1
+        progressLabel.Text = progress .. "%"
+        progressLabel.TextColor3 = progress >= 100 and Color3.fromRGB(34, 197, 94) or Color3.fromRGB(156, 163, 175)
+        progressLabel.TextSize = 12
+        progressLabel.Font = Enum.Font.GothamBold
+        progressLabel.TextXAlignment = Enum.TextXAlignment.Right
+        progressLabel.Parent = item
+        
+        return item
+    end
+    
+    -- สร้าง Quest Items (จะถูกอัปเดตใน update loop)
+    local quest1Item = createQuestItem("Loading...", 0, UDim2.new(0, 10, 0, 60), 1)
+    local quest2Item = createQuestItem("Loading...", 0, UDim2.new(0, 10, 0, 120), 2)
+    local quest3Item = createQuestItem("Loading...", 0, UDim2.new(0, 10, 0, 180), 3)
+    local quest4Item = createQuestItem("Loading...", 0, UDim2.new(0, 10, 0, 240), 4)
+    
+    return questFrame, {quest1Item, quest2Item, quest3Item, quest4Item}
+end
+
+-- ฟังก์ชันสำหรับสร้าง Rods Status UI (ด้านซ้าย)
+local function createRodsStatusUI()
+    local screenGui = PlayerGui:FindFirstChild("AutoFishingStatusMacOS")
+    if not screenGui then return end
+    
+    -- Rods Status Container
+    local rodsFrame = Instance.new("Frame")
+    rodsFrame.Name = "RodsFrame"
+    rodsFrame.Size = UDim2.new(0, 250, 0, 300)
+    rodsFrame.Position = UDim2.new(0, -260, 0.5, -150) -- ด้านซ้ายของ UI หลัก
+    rodsFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 25)
+    rodsFrame.BorderSizePixel = 0
+    rodsFrame.Parent = screenGui
+    
+    local rodsCorner = Instance.new("UICorner")
+    rodsCorner.CornerRadius = UDim.new(0, 16)
+    rodsCorner.Parent = rodsFrame
+    
+    local rodsStroke = Instance.new("UIStroke")
+    rodsStroke.Color = Color3.fromRGB(147, 51, 234)
+    rodsStroke.Thickness = 1
+    rodsStroke.Transparency = 0.7
+    rodsStroke.Parent = rodsFrame
+    
+    -- Rods Title
+    local rodsTitle = Instance.new("TextLabel")
+    rodsTitle.Size = UDim2.new(1, -20, 0, 40)
+    rodsTitle.Position = UDim2.new(0, 10, 0, 10)
+    rodsTitle.BackgroundTransparency = 1
+    rodsTitle.Text = "🎣 Fishing Rods"
+    rodsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    rodsTitle.TextSize = 16
+    rodsTitle.Font = Enum.Font.GothamBold
+    rodsTitle.TextXAlignment = Enum.TextXAlignment.Left
+    rodsTitle.Parent = rodsFrame
+    
+    -- Scroll Frame for Rods
+    local rodsScroll = Instance.new("ScrollingFrame")
+    rodsScroll.Size = UDim2.new(1, -20, 1, -60)
+    rodsScroll.Position = UDim2.new(0, 10, 0, 50)
+    rodsScroll.BackgroundTransparency = 1
+    rodsScroll.BorderSizePixel = 0
+    rodsScroll.ScrollBarThickness = 4
+    rodsScroll.ScrollBarImageColor3 = Color3.fromRGB(147, 51, 234)
+    rodsScroll.Parent = rodsFrame
+    
+    return rodsFrame, rodsScroll
+end
+
+-- ฟังก์ชันอัปเดต Rods List
+local function updateRodsList(rodsScroll)
+    if not rodsScroll or not FishingData.getRodsList then return end
+    
+    -- ลบรายการเก่า
+    for _, child in pairs(rodsScroll:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+    
+    local rods = FishingData.getRodsList()
+    local yPos = 0
+    
+    for i, rod in ipairs(rods) do
+        -- สร้าง Rod Item
+        local rodItem = Instance.new("Frame")
+        rodItem.Size = UDim2.new(1, 0, 0, 35)
+        rodItem.Position = UDim2.new(0, 0, 0, yPos)
+        rodItem.BackgroundColor3 = rod.isEquipped and Color3.fromRGB(34, 197, 94) or Color3.fromRGB(30, 25, 45)
+        rodItem.BackgroundTransparency = rod.isEquipped and 0.8 or 0.3
+        rodItem.BorderSizePixel = 0
+        rodItem.Parent = rodsScroll
+        
+        local rodCorner = Instance.new("UICorner")
+        rodCorner.CornerRadius = UDim.new(0, 6)
+        rodCorner.Parent = rodItem
+        
+        -- Rod Name
+        local rodName = Instance.new("TextLabel")
+        rodName.Size = UDim2.new(1, -50, 1, 0)
+        rodName.Position = UDim2.new(0, 8, 0, 0)
+        rodName.BackgroundTransparency = 1
+        rodName.Text = rod.name
+        rodName.TextColor3 = rod.isEquipped and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
+        rodName.TextSize = 11
+        rodName.Font = rod.isEquipped and Enum.Font.GothamBold or Enum.Font.Gotham
+        rodName.TextXAlignment = Enum.TextXAlignment.Left
+        rodName.Parent = rodItem
+        
+        -- Equipped Status
+        if rod.isEquipped then
+            local equippedIcon = Instance.new("TextLabel")
+            equippedIcon.Size = UDim2.new(0, 40, 1, 0)
+            equippedIcon.Position = UDim2.new(1, -45, 0, 0)
+            equippedIcon.BackgroundTransparency = 1
+            equippedIcon.Text = "✓"
+            equippedIcon.TextColor3 = Color3.fromRGB(34, 197, 94)
+            equippedIcon.TextSize = 14
+            equippedIcon.Font = Enum.Font.GothamBold
+            equippedIcon.TextXAlignment = Enum.TextXAlignment.Center
+            equippedIcon.Parent = rodItem
+        end
+        
+        yPos = yPos + 40
+    end
+    
+    -- อัปเดต Canvas Size
+    rodsScroll.CanvasSize = UDim2.new(0, 0, 0, yPos)
+end
+
+-- ========================================
+-- MAIN UI CREATION
+-- ========================================
+
+local function createMainStatusDisplay()
+    -- ลบ UI เก่าถ้ามี
+    local existingGui = PlayerGui:FindFirstChild("AutoFishingStatusMacOS")
+    if existingGui then
+        existingGui:Destroy()
+    end
+    
+    -- Main ScreenGui
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "AutoFishingStatusMacOS"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = PlayerGui
+    
+    -- Main Container (centered)
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 380, 0, 340)
+    mainFrame.Position = UDim2.new(0.5, -190, 0.5, -170) -- Center of screen
+    mainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 25) -- Dark purple-gray
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = screenGui
+    
+    -- Main frame corner radius
+    local mainCorner = Instance.new("UICorner")
+    mainCorner.CornerRadius = UDim.new(0, 16)
+    mainCorner.Parent = mainFrame
+    
+    -- Subtle border glow
+    local mainStroke = Instance.new("UIStroke")
+    mainStroke.Color = Color3.fromRGB(147, 51, 234) -- Purple accent
+    mainStroke.Thickness = 1
+    mainStroke.Transparency = 0.7
+    mainStroke.Parent = mainFrame
+    
+    -- Glass blur effect simulation
+    local blurFrame = Instance.new("Frame")
+    blurFrame.Size = UDim2.new(1, 0, 1, 0)
+    blurFrame.Position = UDim2.new(0, 0, 0, 0)
+    blurFrame.BackgroundColor3 = Color3.fromRGB(30, 25, 45)
+    blurFrame.BackgroundTransparency = 0.3
+    blurFrame.BorderSizePixel = 0
+    blurFrame.Parent = mainFrame
+    
+    local blurCorner = Instance.new("UICorner")
+    blurCorner.CornerRadius = UDim.new(0, 16)
+    blurCorner.Parent = blurFrame
+    
+    -- Title Bar
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0, 60)
+    titleBar.Position = UDim2.new(0, 0, 0, 0)
+    titleBar.BackgroundColor3 = Color3.fromRGB(25, 20, 40)
+    titleBar.BackgroundTransparency = 0.2
+    titleBar.BorderSizePixel = 0
+    titleBar.Parent = mainFrame
+    
+    local titleCorner = Instance.new("UICorner")
+    titleCorner.CornerRadius = UDim.new(0, 16)
+    titleCorner.Parent = titleBar
+    
+    -- Traffic light buttons (macOS style)
+    local function createTrafficLight(color, position)
+        local light = Instance.new("Frame")
+        light.Size = UDim2.new(0, 12, 0, 12)
+        light.Position = position
+        light.BackgroundColor3 = color
+        light.BorderSizePixel = 0
+        light.Parent = titleBar
+        
+        local lightCorner = Instance.new("UICorner")
+        lightCorner.CornerRadius = UDim.new(0.5, 0)
+        lightCorner.Parent = light
+        
+        return light
+    end
+    
+    createTrafficLight(Color3.fromRGB(255, 96, 92), UDim2.new(0, 20, 0.5, -6))   -- Red
+    createTrafficLight(Color3.fromRGB(255, 189, 68), UDim2.new(0, 40, 0.5, -6))  -- Yellow
+    createTrafficLight(Color3.fromRGB(40, 205, 65), UDim2.new(0, 60, 0.5, -6))   -- Green
+    
+    -- Title Text
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, -100, 1, 0)
+    titleLabel.Position = UDim2.new(0, 100, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = "Moji Hub"
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.TextSize = 18
+    titleLabel.Font = Enum.Font.GothamSemibold
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = titleBar
+    
+    -- Status indicator
+    local statusDot = Instance.new("Frame")
+    statusDot.Size = UDim2.new(0, 8, 0, 8)
+    statusDot.Position = UDim2.new(1, -30, 0.5, -4)
+    statusDot.BackgroundColor3 = Color3.fromRGB(34, 197, 94) -- Green
+    statusDot.BorderSizePixel = 0
+    statusDot.Parent = titleBar
+    
+    local dotCorner = Instance.new("UICorner")
+    dotCorner.CornerRadius = UDim.new(0.5, 0)
+    dotCorner.Parent = statusDot
+    
+    -- Content Area
+    local contentFrame = Instance.new("Frame")
+    contentFrame.Name = "ContentFrame"
+    contentFrame.Size = UDim2.new(1, -40, 1, -100)
+    contentFrame.Position = UDim2.new(0, 20, 0, 80)
+    contentFrame.BackgroundTransparency = 1
+    contentFrame.Parent = mainFrame
+    
+    -- Stats Container
+    local function createStatCard(title, value, position, color)
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(0.45, 0, 0, 50)
+        card.Position = position
+        card.BackgroundColor3 = Color3.fromRGB(30, 25, 45)
+        card.BackgroundTransparency = 0.3
+        card.BorderSizePixel = 0
+        card.Parent = contentFrame
+        
+        local cardCorner = Instance.new("UICorner")
+        cardCorner.CornerRadius = UDim.new(0, 12)
+        cardCorner.Parent = card
+        
+        local cardStroke = Instance.new("UIStroke")
+        cardStroke.Color = Color3.fromRGB(60, 50, 90)
+        cardStroke.Thickness = 1
+        cardStroke.Transparency = 0.5
+        cardStroke.Parent = card
+        
+        local titleText = Instance.new("TextLabel")
+        titleText.Size = UDim2.new(1, -16, 0, 20)
+        titleText.Position = UDim2.new(0, 8, 0, 5)
+        titleText.BackgroundTransparency = 1
+        titleText.Text = title
+        titleText.TextColor3 = Color3.fromRGB(156, 163, 175)
+        titleText.TextSize = 12
+        titleText.Font = Enum.Font.Gotham
+        titleText.TextXAlignment = Enum.TextXAlignment.Left
+        titleText.Parent = card
+        
+        local valueText = Instance.new("TextLabel")
+        valueText.Name = "ValueText"
+        valueText.Size = UDim2.new(1, -16, 0, 25)
+        valueText.Position = UDim2.new(0, 8, 0, 20)
+        valueText.BackgroundTransparency = 1
+        valueText.Text = value
+        valueText.TextColor3 = color
+        valueText.TextSize = 16
+        valueText.Font = Enum.Font.GothamBold
+        valueText.TextXAlignment = Enum.TextXAlignment.Left
+        valueText.Parent = card
+        
+        return valueText
+    end
+    
+    -- Create stat cards
+    local moneyLabel = createStatCard("Balance", FishingData.formatMoney(FishingData.getPlayerMoney()), 
+        UDim2.new(0, 0, 0, 0), Color3.fromRGB(34, 197, 94))
+    
+    local itemsLabel = createStatCard("Inventory", FishingData.getInventoryCount() .. " / 500", 
+        UDim2.new(0.55, 0, 0, 0), Color3.fromRGB(59, 130, 246))
+    
+    -- System Status Card
+    local systemCard = Instance.new("Frame")
+    systemCard.Size = UDim2.new(1, 0, 0, 140)
+    systemCard.Position = UDim2.new(0, 0, 0, 70)
+    systemCard.BackgroundColor3 = Color3.fromRGB(30, 25, 45)
+    systemCard.BackgroundTransparency = 0.3
+    systemCard.BorderSizePixel = 0
+    systemCard.Parent = contentFrame
+    
+    local systemCorner = Instance.new("UICorner")
+    systemCorner.CornerRadius = UDim.new(0, 12)
+    systemCorner.Parent = systemCard
+    
+    local systemStroke = Instance.new("UIStroke")
+    systemStroke.Color = Color3.fromRGB(60, 50, 90)
+    systemStroke.Thickness = 1
+    systemStroke.Transparency = 0.5
+    systemStroke.Parent = systemCard
+    
+    local systemTitle = Instance.new("TextLabel")
+    systemTitle.Size = UDim2.new(1, -16, 0, 20)
+    systemTitle.Position = UDim2.new(0, 8, 0, 8)
+    systemTitle.BackgroundTransparency = 1
+    systemTitle.Text = "System Status"
+    systemTitle.TextColor3 = Color3.fromRGB(156, 163, 175)
+    systemTitle.TextSize = 12
+    systemTitle.Font = Enum.Font.Gotham
+    systemTitle.TextXAlignment = Enum.TextXAlignment.Left
+    systemTitle.Parent = systemCard
+    
+    -- Status indicators
+    local function createStatusIndicator(text, position)
+        local indicator = Instance.new("Frame")
+        indicator.Size = UDim2.new(0, 110, 0, 20)
+        indicator.Position = position
+        indicator.BackgroundTransparency = 1
+        indicator.Parent = systemCard
+        
+        local dot = Instance.new("Frame")
+        dot.Size = UDim2.new(0, 6, 0, 6)
+        dot.Position = UDim2.new(0, 0, 0.5, -3)
+        dot.BackgroundColor3 = Color3.fromRGB(34, 197, 94)
+        dot.BorderSizePixel = 0
+        dot.Parent = indicator
+        
+        local dotCorner = Instance.new("UICorner")
+        dotCorner.CornerRadius = UDim.new(0.5, 0)
+        dotCorner.Parent = dot
+        
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, -12, 1, 0)
+        label.Position = UDim2.new(0, 12, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Text = text
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.TextSize = 11
+        label.Font = Enum.Font.Gotham
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = indicator
+        
+        return indicator
+    end
+    
+    createStatusIndicator("Auto Fishing", UDim2.new(0, 8, 0, 35))
+    createStatusIndicator("Auto Sell", UDim2.new(0, 130, 0, 35))
+    createStatusIndicator("Anti AFK", UDim2.new(0, 8, 0, 55))
+    createStatusIndicator("Death Recovery", UDim2.new(0, 130, 0, 55))
+    createStatusIndicator("Best Rod Auto", UDim2.new(0, 8, 0, 75))
+    createStatusIndicator("Auto Buy Rods", UDim2.new(0, 130, 0, 75))
+    
+    -- สถานะใหม่สำหรับ Quest System
+    local systemStatus = FishingData.getSystemStatus()
+    local questStatusText = systemStatus.questMode and "Quest Mode: ON" or "Normal Mode"
+    createStatusIndicator(questStatusText, UDim2.new(0, 8, 0, 95))
+    createStatusIndicator("Location: " .. string.upper(systemStatus.currentLocation:sub(1,1)) .. systemStatus.currentLocation:sub(2), UDim2.new(0, 130, 0, 95))
+    
+    -- สร้าง Quest UI และ Rods UI
+    local questFrame, questItems = createQuestStatusUI()
+    local rodsFrame, rodsScroll = createRodsStatusUI()
+    
+    -- Smooth entrance animation สำหรับ UI ทั้งหมด
+    mainFrame.Size = UDim2.new(0, 0, 0, 0)
+    mainFrame.BackgroundTransparency = 1
+    if questFrame then
+        questFrame.Size = UDim2.new(0, 0, 0, 0)
+        questFrame.BackgroundTransparency = 1
+    end
+    if rodsFrame then
+        rodsFrame.Size = UDim2.new(0, 0, 0, 0)
+        rodsFrame.BackgroundTransparency = 1
+    end
+    
+    local entranceTween = TweenService:Create(mainFrame,
+        TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+        {
+            Size = UDim2.new(0, 380, 0, 340),
+            BackgroundTransparency = 0
+        }
+    )
+    entranceTween:Play()
+    
+    -- Animation สำหรับ Quest UI
+    if questFrame then
+        wait(0.2)
+        local questTween = TweenService:Create(questFrame,
+            TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+            {
+                Size = UDim2.new(0, 300, 0, 280),
+                BackgroundTransparency = 0
+            }
+        )
+        questTween:Play()
+    end
+    
+    -- Animation สำหรับ Rods UI
+    if rodsFrame then
+        wait(0.2)
+        local rodsTween = TweenService:Create(rodsFrame,
+            TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+            {
+                Size = UDim2.new(0, 250, 0, 300),
+                BackgroundTransparency = 0
+            }
+        )
+        rodsTween:Play()
+    end
+    
+    -- Update loop
+    spawn(function()
+        while mainFrame.Parent do
+            wait(3)
+            if mainFrame.Parent then
+                -- อัปเดตข้อมูลหลัก
+                local currentMoney = FishingData.getPlayerMoney()
+                local currentItems = FishingData.getInventoryCount()
+                
+                moneyLabel.Text = FishingData.formatMoney(currentMoney)
+                itemsLabel.Text = currentItems .. " / 500"
+                
+                -- Update item count color based on capacity
+                if currentItems >= 480 then
+                    itemsLabel.TextColor3 = Color3.fromRGB(251, 191, 36) -- Amber
+                elseif currentItems >= 500 then
+                    itemsLabel.TextColor3 = Color3.fromRGB(239, 68, 68) -- Red
+                else
+                    itemsLabel.TextColor3 = Color3.fromRGB(59, 130, 246) -- Blue
+                end
+                
+                -- อัปเดต Quest Progress
+                if questItems and FishingData.checkQuestStatus then
+                    local systemStatus = FishingData.getSystemStatus()
+                    
+                    if systemStatus.questMode then
+                        local questData = FishingData.checkQuestStatus()
+                        local questTexts = questData.questTexts
+                        local progresses = {questData.quest1, questData.quest2, questData.quest3, questData.quest4}
+                        
+                        for i, item in ipairs(questItems) do
+                            if item and item.Parent then
+                                local questLabel = item:FindFirstChild("QuestLabel")
+                                local progressLabel = item:FindFirstChild("ProgressLabel")
+                                local progressFill = item:FindFirstChild("ProgressFill")
+                                
+                                if questLabel and progressLabel and progressFill then
+                                    questLabel.Text = "Quest " .. i .. ": " .. questTexts[i]:sub(1, 35) .. (questTexts[i]:len() > 35 and "..." or "")
+                                    progressLabel.Text = progresses[i] .. "%"
+                                    progressLabel.TextColor3 = progresses[i] >= 100 and Color3.fromRGB(34, 197, 94) or Color3.fromRGB(156, 163, 175)
+                                    progressFill.Size = UDim2.new(progresses[i] / 100, 0, 1, 0)
+                                    progressFill.BackgroundColor3 = progresses[i] >= 100 and Color3.fromRGB(34, 197, 94) or Color3.fromRGB(59, 130, 246)
+                                end
+                            end
+                        end
+                    end
+                end
+                
+                -- อัปเดต Rods List
+                if rodsScroll then
+                    updateRodsList(rodsScroll)
+                end
+            end
+        end
+    end)
+    
+    -- Pulse animation for status dot
+    spawn(function()
+        while statusDot.Parent do
+            local pulseTween = TweenService:Create(statusDot,
+                TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+                {BackgroundTransparency = 0.3}
+            )
+            pulseTween:Play()
+            wait(2)
+        end
+    end)
+    
+    print("✅ Fishing UI loaded successfully!")
+    return screenGui
+end
+
+-- ========================================
+-- INITIALIZE UI
+-- ========================================
+
+-- รอให้ main script โหลดเสร็จก่อน
+if FishingData.getPlayerMoney and FishingData.getInventoryCount then
+    createMainStatusDisplay()
+else
+    warn("⚠️ Main script functions not ready. Retrying in 2 seconds...")
+    wait(2)
+    if FishingData.getPlayerMoney and FishingData.getInventoryCount then
+        createMainStatusDisplay()
+    else
+        warn("❌ Failed to connect to main script. Please restart both scripts.")
+    end
+end
