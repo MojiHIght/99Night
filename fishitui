@@ -13,8 +13,6 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 -- ========================================
 
 local function waitForMainScript()
-    print("กำลังรอ Main Script...")
-    
     local maxWait = 60
     local waited = 0
     
@@ -28,26 +26,19 @@ local function waitForMainScript()
            FishingData.getRodsList and
            FishingData.formatMoney then
             
-            print("✅ Main Script พร้อมแล้ว! เริ่มสร้าง UI...")
             return FishingData
         end
         
         wait(1)
         waited = waited + 1
-        
-        if waited % 10 == 0 then
-            print("รอ Main Script... (" .. waited .. "/" .. maxWait .. " วินาที)")
-        end
     end
     
-    warn("❌ Timeout: ไม่สามารถเชื่อมต่อกับ Main Script ได้")
     return nil
 end
 
 -- Get data from main script
 local FishingData = waitForMainScript()
 if not FishingData then
-    warn("⚠️ Main fishing script not found! UI จะไม่ทำงาน")
     return
 end
 
@@ -67,24 +58,17 @@ local itemsLabel = nil
 -- ฟังก์ชันอัปเดต Quest UI โดยใช้ฟังก์ชันจาก Main Script
 local function updateQuestUI()
     if #questElements == 0 then 
-        print("No quest elements found")
         return 
     end
     
     -- ใช้ฟังก์ชันจาก Main Script
     local success, questData = pcall(FishingData.checkQuestStatus)
     if not success or not questData then 
-        print("Failed to get quest data from Main Script")
         return 
     end
     
     local questTexts = questData.questTexts
     local progresses = {questData.quest1, questData.quest2, questData.quest3, questData.quest4}
-    
-    print("Updating Quest UI with Main Script data:")
-    for i = 1, 4 do
-        print("  Quest " .. i .. ": " .. progresses[i] .. "% - " .. (questTexts[i] or "N/A"))
-    end
     
     for i = 1, 4 do
         local element = questElements[i]
@@ -106,21 +90,14 @@ local function updateQuestUI()
                     
                     progressFill.Size = UDim2.new(progresses[i] / 100, 0, 1, 0)
                     progressFill.BackgroundColor3 = progresses[i] >= 100 and Color3.fromRGB(34, 197, 94) or Color3.fromRGB(59, 130, 246)
-                    
-                    print("✅ Updated Quest " .. i .. " UI: " .. progresses[i] .. "%")
                 else
                     questLabel.Text = "Quest " .. i .. ": ไม่พบ Quest Tracker"
                     progressLabel.Text = "N/A"
                     progressLabel.TextColor3 = Color3.fromRGB(156, 163, 175)
                     progressFill.Size = UDim2.new(0, 0, 1, 0)
                     progressFill.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-                    print("❌ Quest " .. i .. " no data")
                 end
-            else
-                print("❌ Quest " .. i .. " UI elements not found in references")
             end
-        else
-            print("❌ Quest " .. i .. " element not found")
         end
     end
 end
@@ -317,8 +294,6 @@ local function createQuestStatusUI()
     
     -- ตั้งค่า Canvas Size สำหรับ scrolling
     questScroll.CanvasSize = UDim2.new(0, 0, 0, yPos)
-    
-    print("Created " .. #questElements .. " quest elements with scrolling support")
     
     return questFrame
 end
@@ -645,7 +620,6 @@ local function createMainStatusDisplay()
     -- อัปเดต Quest ครั้งแรกทันที
     spawn(function()
         wait(2)
-        print("=== Starting Quest UI Update (Using Main Script) ===")
         updateQuestUI()
     end)
     
@@ -698,7 +672,6 @@ local function createMainStatusDisplay()
         end
     end)
     
-    print("✅ UI loaded successfully using Main Script functions!")
     return screenGui
 end
 
@@ -707,31 +680,16 @@ end
 -- ========================================
 
 local function testMainScriptConnection()
-    print("=== ทดสอบการเชื่อมต่อ Main Script ===")
-    
     if FishingData then
-        print("✅ FishingData connected")
-        
         -- ทดสอบฟังก์ชัน Quest
         local success, questData = pcall(FishingData.checkQuestStatus)
         if success then
-            print("✅ Quest functions working")
             for i = 1, 4 do
-                print("  Quest " .. i .. ": " .. questData["quest"..i] .. "% - " .. (questData.questTexts[i] or "N/A"))
+                local progress = questData["quest"..i]
+                local text = questData.questTexts[i] or "N/A"
             end
-        else
-            print("❌ Quest functions failed:", questData)
         end
-        
-        -- ทดสอบฟังก์ชันอื่น
-        print("Money:", FishingData.formatMoney(FishingData.getPlayerMoney()))
-        print("Inventory:", FishingData.getInventoryCount())
-        print("Rods count:", #FishingData.getRodsList())
-    else
-        print("❌ FishingData not connected")
     end
-    
-    print("=== จบการทดสอบ ===")
 end
 
 -- ========================================
@@ -741,23 +699,15 @@ end
 _G.updateQuestUI = updateQuestUI
 _G.testMainScript = testMainScriptConnection
 _G.forceUpdate = function()
-    print("Force updating all UI components using Main Script...")
     updateQuestUI()
     updateRodsList()
-    print("Force update completed!")
 end
 
 -- ========================================
 -- INITIALIZE UI
 -- ========================================
 
-print("เริ่มสร้าง UI โดยใช้ฟังก์ชันจาก Main Script...")
 createMainStatusDisplay()
-print("✅ UI โหลดสำเร็จ โดยใช้ฟังก์ชันจาก Main Script!")
-print("💡 คำสั่งใช้งาน:")
-print("   _G.updateQuestUI() - บังคับอัปเดต Quest")
-print("   _G.testMainScript() - ทดสอบการเชื่อมต่อ Main Script")
-print("   _G.forceUpdate() - บังคับอัปเดตทั้งหมด")
 
 -- ทดสอบการเชื่อมต่อ Main Script
 spawn(function()
