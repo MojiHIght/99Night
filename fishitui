@@ -115,11 +115,18 @@ local function getQuestProgress(questText)
         return 0
     end
     
-    if questText:find("100%%") then
+    -- ตรวจสอบว่าเควสเสร็จหรือยัง (100%)
+    if questText:find("100%%") or questText:find("- 100%%") then
         return 100
     end
     
-    local progress = questText:match("(%d+)%%")
+    -- ดึงเปอร์เซ็นต์จากรูปแบบ "- XX%"
+    local progress = questText:match("%%s*-%s*(%d+)%%")
+    if not progress then
+        -- ลองรูปแบบอื่น
+        progress = questText:match("(%d+)%%")
+    end
+    
     if progress then
         return tonumber(progress)
     end
