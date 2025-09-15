@@ -567,18 +567,26 @@ local function createMainStatusDisplay()
                 if questItems and FishingData.checkQuestStatus then
                     local systemStatus = FishingData.getSystemStatus()
                     
-                    if systemStatus.questMode then
-                        local questData = FishingData.checkQuestStatus()
-                        local questTexts = questData.questTexts
-                        local progresses = {questData.quest1, questData.quest2, questData.quest3, questData.quest4}
-                        
-                        for i, item in ipairs(questItems) do
-                            if item and item.Parent then
-                                local questLabel = item:FindFirstChild("QuestLabel")
-                                local progressLabel = item:FindFirstChild("ProgressLabel")
-                                local progressFill = item:FindFirstChild("ProgressFill")
-                                
-                                if questLabel and progressLabel and progressFill then
+                    -- แสดง Quest แม้ไม่ได้อยู่ใน Quest Mode
+                    local questData = FishingData.checkQuestStatus()
+                    local questTexts = questData.questTexts
+                    local progresses = {questData.quest1, questData.quest2, questData.quest3, questData.quest4}
+                    
+                    for i, item in ipairs(questItems) do
+                        if item and item.Parent then
+                            local questLabel = item:FindFirstChild("QuestLabel")
+                            local progressLabel = item:FindFirstChild("ProgressLabel")
+                            local progressFill = item:FindFirstChild("ProgressFill")
+                            
+                            if questLabel and progressLabel and progressFill then
+                                -- ถ้าไม่มีข้อมูลเควส แสดงสถานะ
+                                if questTexts[i] == "" or questTexts[i] == nil then
+                                    questLabel.Text = "Quest " .. i .. ": Quest Tracker not found"
+                                    progressLabel.Text = "N/A"
+                                    progressLabel.TextColor3 = Color3.fromRGB(156, 163, 175)
+                                    progressFill.Size = UDim2.new(0, 0, 1, 0)
+                                    progressFill.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+                                else
                                     questLabel.Text = "Quest " .. i .. ": " .. questTexts[i]:sub(1, 35) .. (questTexts[i]:len() > 35 and "..." or "")
                                     progressLabel.Text = progresses[i] .. "%"
                                     progressLabel.TextColor3 = progresses[i] >= 100 and Color3.fromRGB(34, 197, 94) or Color3.fromRGB(156, 163, 175)
