@@ -1,361 +1,132 @@
 -- ========================================
--- Fishing Script UI System - Independent Version
--- ดึงข้อมูลเองไม่ต้องพึ่ง Main Script
+-- Fishing Script UI System - ใช้ฟังก์ชันจาก Main Script
+-- ลบการทำงานซ้ำซ้อน ใช้ _G.FishingScript เท่านั้น
 -- ========================================
 
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- ========================================
--- INDEPENDENT DATA FUNCTIONS
+-- WAIT FOR MAIN SCRIPT
 -- ========================================
 
--- ดึงข้อมูลผู้เล่นเอง
-local Replion = require(ReplicatedStorage.Packages.Replion).Client
-local playerData = Replion:WaitReplion("Data")
-local ItemUtility = require(ReplicatedStorage.Shared.ItemUtility)
-
--- ฟังก์ชันดึงเงินผู้เล่น
-local function getPlayerMoney()
-    return playerData:Get("Money") or playerData:Get("Coins") or 0
-end
-
--- ฟังก์ชันนับของในกระเป๋า
-local function getInventoryCount()
-    local totalItems = 0
-    local inventory = playerData:Get("Inventory")
+local function waitForMainScript()
+    print("กำลังรอ Main Script...")
     
-    if inventory then
-        for category, items in pairs(inventory) do
-            if category ~= "Fishing Rods" and category ~= "Baits" then
-                if type(items) == "table" then
-                    for _, item in pairs(items) do
-                        if item.Quantity then
-                            totalItems = totalItems + item.Quantity
-                        else
-                            totalItems = totalItems + 1
-                        end
-                    end
-                end
-            end
-        end
-    end
+    local maxWait = 60
+    local waited = 0
     
-    return totalItems
-end
-
--- ฟังก์ชันแปลงเงิน
-local function formatMoney(amount)
-    if amount >= 1000000 then
-        return string.format("%.1fM", amount / 1000000)
-    elseif amount >= 1000 then
-        return string.format("%.1fK", amount / 1000)
-    else
-        return tostring(amount)
-    end
-end
-
--- ฟังก์ชันดึงข้อความ Quest โดยตรง
-local function getQuestText(labelName)
-    -- ลองหลายเส้นทางที่เป็นไปได้
-    local possiblePaths = {
-        function() return workspace["!!! MENU RINGS"]["Deep Sea Tracker"].Board.Gui.Content[labelName].Text end,
-        function() return workspace["Menu Rings"]["Deep Sea Tracker"].Board.Gui.Content[labelName].Text end,
-        function() return workspace.MenuRings["Deep Sea Tracker"].Board.Gui.Content[labelName].Text end,
-        function() return game.Workspace["!!! MENU RINGS"]["Deep Sea Tracker"].Board.Gui.Content[labelName].Text end
-    }
-    
-    for _, pathFunc in ipairs(possiblePaths) do
-        local success, result = pcall(pathFunc)
-        if success and result and result ~= "" then
-            return result
-        end
-    end
-    
-    -- ค้นหาแบบ recursive
-    local function findQuestTracker(parent)
-        for _, child in pairs(parent:GetChildren()) do
-            if child.Name:lower():find("tracker") or child.Name:lower():find("quest") or child.Name:find("MENU") then
-                local success, content = pcall(function()
-                    return child.Board.Gui.Content[labelName].Text
-                end)
-                if success and content then
-                    return content
-                end
-                
-                -- ลองหา path อื่น
-                for _, subChild in pairs(child:GetChildren()) do
-                    local success2, content2 = pcall(function()
-                        return subChild.Board.Gui.Content[labelName].Text
-                    end)
-                    if success2 and content2 then
-                        return content2
-                    end
-                end
-            end
+    while waited < maxWait do
+        local FishingData = _G.FishingScript
+        
+        if FishingData and 
+           FishingData.getPlayerMoney and 
+           FishingData.getInventoryCount and
+           FishingData.checkQuestStatus and
+           FishingData.getRodsList and
+           FishingData.formatMoney then
             
-            if #child:GetChildren() > 0 then
-                local found = findQuestTracker(child)
-                if found then return found end
-            end
-        end
-        return nil
-    end
-    
-    local found = findQuestTracker(workspace)
-    return found or ""
-end
-
--- ฟังก์ชันแปลง % จากข้อความ Quest
-local function getQuestProgress(questText)
-    if not questText or questText == "" then
-        return 0
-    end
-    
-    -- ตรวจสอบว่าเควสเสร็จหรือยัง (100%)
-    if questText:find("100%%") or questText:find("- 100%%") then
-        return 100
-    end
-    
-    -- ดึงเปอร์เซ็นต์จากรูปแบบ "- XX%"
-    local progress = questText:match("%%s*-%s*(%d+)%%")
-    if not progress then
-        -- ลองรูปแบบอื่น
-        progress = questText:match("(%d+)%%")
-    end
-    
-    if progress then
-        return tonumber(progress)
-    end
-    
-    return 0
-end
-
--- ฟังก์ชันตรวจสอบสถานะ Quest ทั้งหมด
-local function checkQuestStatus()
-    local quest1 = getQuestText("Label1")
-    local quest2 = getQuestText("Label2")
-    local quest3 = getQuestText("Label3")
-    local quest4 = getQuestText("Label4")
-    
-    local progress1 = getQuestProgress(quest1)
-    local progress2 = getQuestProgress(quest2)
-    local progress3 = getQuestProgress(quest3)
-    local progress4 = getQuestProgress(quest4)
-    
-    return {
-        quest1 = progress1,
-        quest2 = progress2,
-        quest3 = progress3,
-        quest4 = progress4,
-        questTexts = {quest1, quest2, quest3, quest4}
-    }
-end
-
--- ฟังก์ชันดึงรายการเบ็ด
-local function getRodsList()
-    local rods = playerData:Get({"Inventory", "Fishing Rods"}) or {}
-    local equipped = playerData:Get("EquippedItems") or {}
-    local rodData = {
-        { id = 79, name = 'Luck Rod', price = 350 },
-        { id = 76, name = 'Carbon Rod', price = 900 },
-        { id = 85, name = 'Grass Rod', price = 1500 },
-        { id = 77, name = 'Demascus Rod', price = 3000 },
-        { id = 78, name = 'Ice Rod', price = 5000 },
-        { id = 4, name = 'Lucky Rod', price = 15000 },
-        { id = 80, name = 'Midnight Rod', price = 50000 },
-        { id = 6, name = 'Steampunk Rod', price = 215000 },
-        { id = 7, name = 'Chrome Rod', price = 437000 },
-        { id = 5, name = 'Astral Rod', price = 1000000 },
-        { id = 126, name = 'Ares rod', price = 3000000 },
-        { id = 168, name = 'Angler Rod', price = 8000000 },
-    }
-    
-    local result = {}
-    for i, rod in ipairs(rods) do
-        local isEquipped = table.find(equipped, rod.UUID) ~= nil
-        local rodNameText = "Unknown Rod"
-        
-        for _, rodDataItem in ipairs(rodData) do
-            if rodDataItem.id == rod.Id then
-                rodNameText = rodDataItem.name
-                break
-            end
+            print("✅ Main Script พร้อมแล้ว! เริ่มสร้าง UI...")
+            return FishingData
         end
         
-        table.insert(result, {
-            name = rodNameText,
-            id = rod.Id,
-            uuid = rod.UUID,
-            isEquipped = isEquipped
-        })
+        wait(1)
+        waited = waited + 1
+        
+        if waited % 10 == 0 then
+            print("รอ Main Script... (" .. waited .. "/" .. maxWait .. " วินาที)")
+        end
     end
     
-    return result
+    warn("❌ Timeout: ไม่สามารถเชื่อมต่อกับ Main Script ได้")
+    return nil
+end
+
+-- Get data from main script
+local FishingData = waitForMainScript()
+if not FishingData then
+    warn("⚠️ Main fishing script not found! UI จะไม่ทำงาน")
+    return
 end
 
 -- ========================================
--- UI CREATION FUNCTIONS
+-- GLOBAL VARIABLES FOR UI REFERENCES
 -- ========================================
 
--- ฟังก์ชันสำหรับสร้าง Quest Status UI (ด้านขวา)
-local function createQuestStatusUI()
-    local screenGui = PlayerGui:FindFirstChild("AutoFishingStatusMacOS")
-    if not screenGui then return end
-    
-    local questFrame = Instance.new("Frame")
-    questFrame.Name = "QuestFrame"
-    questFrame.Size = UDim2.new(0, 300, 0, 280)
-    questFrame.Position = UDim2.new(0.5, 200, 0.5, -140)
-    questFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 25)
-    questFrame.BorderSizePixel = 0
-    questFrame.Parent = screenGui
-    
-    local questCorner = Instance.new("UICorner")
-    questCorner.CornerRadius = UDim.new(0, 16)
-    questCorner.Parent = questFrame
-    
-    local questStroke = Instance.new("UIStroke")
-    questStroke.Color = Color3.fromRGB(147, 51, 234)
-    questStroke.Thickness = 1
-    questStroke.Transparency = 0.7
-    questStroke.Parent = questFrame
-    
-    local questTitle = Instance.new("TextLabel")
-    questTitle.Size = UDim2.new(1, -20, 0, 40)
-    questTitle.Position = UDim2.new(0, 10, 0, 10)
-    questTitle.BackgroundTransparency = 1
-    questTitle.Text = "🎯 Quest Progress"
-    questTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-    questTitle.TextSize = 16
-    questTitle.Font = Enum.Font.GothamBold
-    questTitle.TextXAlignment = Enum.TextXAlignment.Left
-    questTitle.Parent = questFrame
-    
-    local function createQuestItem(questText, progress, position, questNum)
-        local item = Instance.new("Frame")
-        item.Size = UDim2.new(1, -20, 0, 50)
-        item.Position = position
-        item.BackgroundColor3 = Color3.fromRGB(30, 25, 45)
-        item.BackgroundTransparency = 0.3
-        item.BorderSizePixel = 0
-        item.Parent = questFrame
-        
-        local itemCorner = Instance.new("UICorner")
-        itemCorner.CornerRadius = UDim.new(0, 8)
-        itemCorner.Parent = item
-        
-        local progressBg = Instance.new("Frame")
-        progressBg.Size = UDim2.new(1, -16, 0, 4)
-        progressBg.Position = UDim2.new(0, 8, 1, -8)
-        progressBg.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
-        progressBg.BorderSizePixel = 0
-        progressBg.Parent = item
-        
-        local progressBgCorner = Instance.new("UICorner")
-        progressBgCorner.CornerRadius = UDim.new(0, 2)
-        progressBgCorner.Parent = progressBg
-        
-        local progressFill = Instance.new("Frame")
-        progressFill.Name = "ProgressFill"
-        progressFill.Size = UDim2.new(progress / 100, 0, 1, 0)
-        progressFill.Position = UDim2.new(0, 0, 0, 0)
-        progressFill.BackgroundColor3 = progress >= 100 and Color3.fromRGB(34, 197, 94) or Color3.fromRGB(59, 130, 246)
-        progressFill.BorderSizePixel = 0
-        progressFill.Parent = progressBg
-        
-        local progressFillCorner = Instance.new("UICorner")
-        progressFillCorner.CornerRadius = UDim.new(0, 2)
-        progressFillCorner.Parent = progressFill
-        
-        local questLabel = Instance.new("TextLabel")
-        questLabel.Name = "QuestLabel"
-        questLabel.Size = UDim2.new(1, -16, 0, 30)
-        questLabel.Position = UDim2.new(0, 8, 0, 5)
-        questLabel.BackgroundTransparency = 1
-        questLabel.Text = "Quest " .. questNum .. ": " .. questText:sub(1, 40) .. (questText:len() > 40 and "..." or "")
-        questLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        questLabel.TextSize = 11
-        questLabel.Font = Enum.Font.Gotham
-        questLabel.TextXAlignment = Enum.TextXAlignment.Left
-        questLabel.TextYAlignment = Enum.TextYAlignment.Top
-        questLabel.TextWrapped = true
-        questLabel.Parent = item
-        
-        local progressLabel = Instance.new("TextLabel")
-        progressLabel.Name = "ProgressLabel"
-        progressLabel.Size = UDim2.new(0, 60, 0, 20)
-        progressLabel.Position = UDim2.new(1, -68, 0, 5)
-        progressLabel.BackgroundTransparency = 1
-        progressLabel.Text = progress .. "%"
-        progressLabel.TextColor3 = progress >= 100 and Color3.fromRGB(34, 197, 94) or Color3.fromRGB(156, 163, 175)
-        progressLabel.TextSize = 12
-        progressLabel.Font = Enum.Font.GothamBold
-        progressLabel.TextXAlignment = Enum.TextXAlignment.Right
-        progressLabel.Parent = item
-        
-        return item
+local questElements = {}
+local rodsScroll = nil
+local moneyLabel = nil
+local itemsLabel = nil
+
+-- ========================================
+-- UI UPDATE FUNCTIONS
+-- ========================================
+
+-- ฟังก์ชันอัปเดต Quest UI โดยใช้ฟังก์ชันจาก Main Script
+local function updateQuestUI()
+    if #questElements == 0 then 
+        print("No quest elements found")
+        return 
     end
     
-    local quest1Item = createQuestItem("Loading...", 0, UDim2.new(0, 10, 0, 60), 1)
-    local quest2Item = createQuestItem("Loading...", 0, UDim2.new(0, 10, 0, 120), 2)
-    local quest3Item = createQuestItem("Loading...", 0, UDim2.new(0, 10, 0, 180), 3)
-    local quest4Item = createQuestItem("Loading...", 0, UDim2.new(0, 10, 0, 240), 4)
+    -- ใช้ฟังก์ชันจาก Main Script
+    local success, questData = pcall(FishingData.checkQuestStatus)
+    if not success or not questData then 
+        print("Failed to get quest data from Main Script")
+        return 
+    end
     
-    return questFrame, {quest1Item, quest2Item, quest3Item, quest4Item}
+    local questTexts = questData.questTexts
+    local progresses = {questData.quest1, questData.quest2, questData.quest3, questData.quest4}
+    
+    print("Updating Quest UI with Main Script data:")
+    for i = 1, 4 do
+        print("  Quest " .. i .. ": " .. progresses[i] .. "% - " .. (questTexts[i] or "N/A"))
+    end
+    
+    for i = 1, 4 do
+        local element = questElements[i]
+        if element then
+            local questLabel = element.questLabel
+            local progressLabel = element.progressLabel
+            local progressFill = element.progressFill
+            
+            if questLabel and progressLabel and progressFill then
+                if questTexts[i] and questTexts[i] ~= "" then
+                    local shortText = questTexts[i]:sub(1, 35)
+                    if questTexts[i]:len() > 35 then
+                        shortText = shortText .. "..."
+                    end
+                    
+                    questLabel.Text = "Quest " .. i .. ": " .. shortText
+                    progressLabel.Text = progresses[i] .. "%"
+                    progressLabel.TextColor3 = progresses[i] >= 100 and Color3.fromRGB(34, 197, 94) or Color3.fromRGB(156, 163, 175)
+                    
+                    progressFill.Size = UDim2.new(progresses[i] / 100, 0, 1, 0)
+                    progressFill.BackgroundColor3 = progresses[i] >= 100 and Color3.fromRGB(34, 197, 94) or Color3.fromRGB(59, 130, 246)
+                    
+                    print("✅ Updated Quest " .. i .. " UI: " .. progresses[i] .. "%")
+                else
+                    questLabel.Text = "Quest " .. i .. ": ไม่พบ Quest Tracker"
+                    progressLabel.Text = "N/A"
+                    progressLabel.TextColor3 = Color3.fromRGB(156, 163, 175)
+                    progressFill.Size = UDim2.new(0, 0, 1, 0)
+                    progressFill.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+                    print("❌ Quest " .. i .. " no data")
+                end
+            else
+                print("❌ Quest " .. i .. " UI elements not found in references")
+            end
+        else
+            print("❌ Quest " .. i .. " element not found")
+        end
+    end
 end
 
--- ฟังก์ชันสำหรับสร้าง Rods Status UI (ด้านซ้าย)
-local function createRodsStatusUI()
-    local screenGui = PlayerGui:FindFirstChild("AutoFishingStatusMacOS")
-    if not screenGui then return end
-    
-    local rodsFrame = Instance.new("Frame")
-    rodsFrame.Name = "RodsFrame"
-    rodsFrame.Size = UDim2.new(0, 250, 0, 300)
-    rodsFrame.Position = UDim2.new(0.5, -630, 0.5, -150)
-    rodsFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 25)
-    rodsFrame.BorderSizePixel = 0
-    rodsFrame.Parent = screenGui
-    
-    local rodsCorner = Instance.new("UICorner")
-    rodsCorner.CornerRadius = UDim.new(0, 16)
-    rodsCorner.Parent = rodsFrame
-    
-    local rodsStroke = Instance.new("UIStroke")
-    rodsStroke.Color = Color3.fromRGB(147, 51, 234)
-    rodsStroke.Thickness = 1
-    rodsStroke.Transparency = 0.7
-    rodsStroke.Parent = rodsFrame
-    
-    local rodsTitle = Instance.new("TextLabel")
-    rodsTitle.Size = UDim2.new(1, -20, 0, 40)
-    rodsTitle.Position = UDim2.new(0, 10, 0, 10)
-    rodsTitle.BackgroundTransparency = 1
-    rodsTitle.Text = "🎣 Fishing Rods"
-    rodsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-    rodsTitle.TextSize = 16
-    rodsTitle.Font = Enum.Font.GothamBold
-    rodsTitle.TextXAlignment = Enum.TextXAlignment.Left
-    rodsTitle.Parent = rodsFrame
-    
-    local rodsScroll = Instance.new("ScrollingFrame")
-    rodsScroll.Size = UDim2.new(1, -20, 1, -60)
-    rodsScroll.Position = UDim2.new(0, 10, 0, 50)
-    rodsScroll.BackgroundTransparency = 1
-    rodsScroll.BorderSizePixel = 0
-    rodsScroll.ScrollBarThickness = 4
-    rodsScroll.ScrollBarImageColor3 = Color3.fromRGB(147, 51, 234)
-    rodsScroll.Parent = rodsFrame
-    
-    return rodsFrame, rodsScroll
-end
-
--- ฟังก์ชันอัปเดต Rods List
-local function updateRodsList(rodsScroll)
+-- ฟังก์ชันอัปเดต Rods List โดยใช้ฟังก์ชันจาก Main Script
+local function updateRodsList()
     if not rodsScroll then return end
     
     for _, child in pairs(rodsScroll:GetChildren()) do
@@ -364,7 +135,8 @@ local function updateRodsList(rodsScroll)
         end
     end
     
-    local success, rods = pcall(getRodsList)
+    -- ใช้ฟังก์ชันจาก Main Script
+    local success, rods = pcall(FishingData.getRodsList)
     if not success or not rods then return end
     
     local yPos = 0
@@ -410,6 +182,191 @@ local function updateRodsList(rodsScroll)
     end
     
     rodsScroll.CanvasSize = UDim2.new(0, 0, 0, yPos)
+end
+
+-- ========================================
+-- UI CREATION FUNCTIONS
+-- ========================================
+
+-- ฟังก์ชันสำหรับสร้าง Quest Status UI (ด้านขวา)
+local function createQuestStatusUI()
+    local screenGui = PlayerGui:FindFirstChild("AutoFishingStatusMacOS")
+    if not screenGui then return end
+    
+    local questFrame = Instance.new("Frame")
+    questFrame.Name = "QuestFrame"
+    questFrame.Size = UDim2.new(0, 300, 0, 280)
+    questFrame.Position = UDim2.new(0.5, 200, 0.5, -140)
+    questFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 25)
+    questFrame.BorderSizePixel = 0
+    questFrame.Parent = screenGui
+    
+    local questCorner = Instance.new("UICorner")
+    questCorner.CornerRadius = UDim.new(0, 16)
+    questCorner.Parent = questFrame
+    
+    local questStroke = Instance.new("UIStroke")
+    questStroke.Color = Color3.fromRGB(147, 51, 234)
+    questStroke.Thickness = 1
+    questStroke.Transparency = 0.7
+    questStroke.Parent = questFrame
+    
+    local questTitle = Instance.new("TextLabel")
+    questTitle.Size = UDim2.new(1, -20, 0, 40)
+    questTitle.Position = UDim2.new(0, 10, 0, 10)
+    questTitle.BackgroundTransparency = 1
+    questTitle.Text = "🎯 Quest Progress"
+    questTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    questTitle.TextSize = 16
+    questTitle.Font = Enum.Font.GothamBold
+    questTitle.TextXAlignment = Enum.TextXAlignment.Left
+    questTitle.Parent = questFrame
+    
+    -- เพิ่ม ScrollingFrame สำหรับ Quest
+    local questScroll = Instance.new("ScrollingFrame")
+    questScroll.Size = UDim2.new(1, -20, 1, -60)
+    questScroll.Position = UDim2.new(0, 10, 0, 50)
+    questScroll.BackgroundTransparency = 1
+    questScroll.BorderSizePixel = 0
+    questScroll.ScrollBarThickness = 4
+    questScroll.ScrollBarImageColor3 = Color3.fromRGB(147, 51, 234)
+    questScroll.Parent = questFrame
+    
+    local function createQuestItem(questText, progress, yPosition, questNum)
+        local item = Instance.new("Frame")
+        item.Size = UDim2.new(1, 0, 0, 60)
+        item.Position = UDim2.new(0, 0, 0, yPosition)
+        item.BackgroundColor3 = Color3.fromRGB(30, 25, 45)
+        item.BackgroundTransparency = 0.3
+        item.BorderSizePixel = 0
+        item.Parent = questScroll
+        
+        local itemCorner = Instance.new("UICorner")
+        itemCorner.CornerRadius = UDim.new(0, 8)
+        itemCorner.Parent = item
+        
+        local progressBg = Instance.new("Frame")
+        progressBg.Size = UDim2.new(1, -16, 0, 4)
+        progressBg.Position = UDim2.new(0, 8, 1, -8)
+        progressBg.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+        progressBg.BorderSizePixel = 0
+        progressBg.Parent = item
+        
+        local progressBgCorner = Instance.new("UICorner")
+        progressBgCorner.CornerRadius = UDim.new(0, 2)
+        progressBgCorner.Parent = progressBg
+        
+        local progressFill = Instance.new("Frame")
+        progressFill.Name = "ProgressFill"
+        progressFill.Size = UDim2.new(progress / 100, 0, 1, 0)
+        progressFill.Position = UDim2.new(0, 0, 0, 0)
+        progressFill.BackgroundColor3 = progress >= 100 and Color3.fromRGB(34, 197, 94) or Color3.fromRGB(59, 130, 246)
+        progressFill.BorderSizePixel = 0
+        progressFill.Parent = progressBg
+        
+        local progressFillCorner = Instance.new("UICorner")
+        progressFillCorner.CornerRadius = UDim.new(0, 2)
+        progressFillCorner.Parent = progressFill
+        
+        local questLabel = Instance.new("TextLabel")
+        questLabel.Name = "QuestLabel"
+        questLabel.Size = UDim2.new(1, -16, 0, 35)
+        questLabel.Position = UDim2.new(0, 8, 0, 5)
+        questLabel.BackgroundTransparency = 1
+        questLabel.Text = "Quest " .. questNum .. ": รอข้อมูลจาก Main Script..."
+        questLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        questLabel.TextSize = 11
+        questLabel.Font = Enum.Font.Gotham
+        questLabel.TextXAlignment = Enum.TextXAlignment.Left
+        questLabel.TextYAlignment = Enum.TextYAlignment.Top
+        questLabel.TextWrapped = true
+        questLabel.Parent = item
+        
+        local progressLabel = Instance.new("TextLabel")
+        progressLabel.Name = "ProgressLabel"
+        progressLabel.Size = UDim2.new(0, 60, 0, 20)
+        progressLabel.Position = UDim2.new(1, -68, 0, 5)
+        progressLabel.BackgroundTransparency = 1
+        progressLabel.Text = "0%"
+        progressLabel.TextColor3 = Color3.fromRGB(156, 163, 175)
+        progressLabel.TextSize = 12
+        progressLabel.Font = Enum.Font.GothamBold
+        progressLabel.TextXAlignment = Enum.TextXAlignment.Right
+        progressLabel.Parent = item
+        
+        -- เก็บ reference ของ elements ที่จำเป็น
+        questElements[questNum] = {
+            frame = item,
+            questLabel = questLabel,
+            progressLabel = progressLabel,
+            progressFill = progressFill
+        }
+        
+        return item
+    end
+    
+    -- เคลียร์ questElements เก่า
+    questElements = {}
+    
+    -- สร้าง quest items ใหม่ในรูปแบบ scrollable
+    local yPos = 0
+    for i = 1, 4 do
+        createQuestItem("Loading...", 0, yPos, i)
+        yPos = yPos + 70 -- เพิ่มระยะห่างระหว่าง quest items
+    end
+    
+    -- ตั้งค่า Canvas Size สำหรับ scrolling
+    questScroll.CanvasSize = UDim2.new(0, 0, 0, yPos)
+    
+    print("Created " .. #questElements .. " quest elements with scrolling support")
+    
+    return questFrame
+end
+
+-- ฟังก์ชันสำหรับสร้าง Rods Status UI (ด้านซ้าย)
+local function createRodsStatusUI()
+    local screenGui = PlayerGui:FindFirstChild("AutoFishingStatusMacOS")
+    if not screenGui then return end
+    
+    local rodsFrame = Instance.new("Frame")
+    rodsFrame.Name = "RodsFrame"
+    rodsFrame.Size = UDim2.new(0, 250, 0, 300)
+    rodsFrame.Position = UDim2.new(0.5, -450, 0.5, -150)
+    rodsFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 25)
+    rodsFrame.BorderSizePixel = 0
+    rodsFrame.Parent = screenGui
+    
+    local rodsCorner = Instance.new("UICorner")
+    rodsCorner.CornerRadius = UDim.new(0, 16)
+    rodsCorner.Parent = rodsFrame
+    
+    local rodsStroke = Instance.new("UIStroke")
+    rodsStroke.Color = Color3.fromRGB(147, 51, 234)
+    rodsStroke.Thickness = 1
+    rodsStroke.Transparency = 0.7
+    rodsStroke.Parent = rodsFrame
+    
+    local rodsTitle = Instance.new("TextLabel")
+    rodsTitle.Size = UDim2.new(1, -20, 0, 40)
+    rodsTitle.Position = UDim2.new(0, 10, 0, 10)
+    rodsTitle.BackgroundTransparency = 1
+    rodsTitle.Text = "🎣 Fishing Rods"
+    rodsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    rodsTitle.TextSize = 16
+    rodsTitle.Font = Enum.Font.GothamBold
+    rodsTitle.TextXAlignment = Enum.TextXAlignment.Left
+    rodsTitle.Parent = rodsFrame
+    
+    rodsScroll = Instance.new("ScrollingFrame")
+    rodsScroll.Size = UDim2.new(1, -20, 1, -60)
+    rodsScroll.Position = UDim2.new(0, 10, 0, 50)
+    rodsScroll.BackgroundTransparency = 1
+    rodsScroll.BorderSizePixel = 0
+    rodsScroll.ScrollBarThickness = 4
+    rodsScroll.ScrollBarImageColor3 = Color3.fromRGB(147, 51, 234)
+    rodsScroll.Parent = rodsFrame
+    
+    return rodsFrame
 end
 
 -- ========================================
@@ -563,10 +520,11 @@ local function createMainStatusDisplay()
         return valueText
     end
     
-    local moneyLabel = createStatCard("Balance", formatMoney(getPlayerMoney()), 
+    -- ใช้ฟังก์ชันจาก Main Script
+    moneyLabel = createStatCard("Balance", FishingData.formatMoney(FishingData.getPlayerMoney()), 
         UDim2.new(0, 0, 0, 0), Color3.fromRGB(34, 197, 94))
     
-    local itemsLabel = createStatCard("Inventory", getInventoryCount() .. " / 500", 
+    itemsLabel = createStatCard("Inventory", FishingData.getInventoryCount() .. " / 500", 
         UDim2.new(0.55, 0, 0, 0), Color3.fromRGB(59, 130, 246))
     
     local systemCard = Instance.new("Frame")
@@ -630,14 +588,16 @@ local function createMainStatusDisplay()
         return indicator
     end
     
-    createStatusIndicator("UI Independent", UDim2.new(0, 8, 0, 35))
+    createStatusIndicator("Using Main Script", UDim2.new(0, 8, 0, 35))
     createStatusIndicator("Quest System", UDim2.new(0, 130, 0, 35))
     createStatusIndicator("Auto Update", UDim2.new(0, 8, 0, 55))
-    createStatusIndicator("Real-time Data", UDim2.new(0, 130, 0, 55))
+    createStatusIndicator("No Duplication", UDim2.new(0, 130, 0, 55))
     
-    local questFrame, questItems = createQuestStatusUI()
-    local rodsFrame, rodsScroll = createRodsStatusUI()
+    -- สร้าง Quest และ Rods UI
+    local questFrame = createQuestStatusUI()
+    local rodsFrame = createRodsStatusUI()
     
+    -- Animation
     mainFrame.Size = UDim2.new(0, 0, 0, 0)
     mainFrame.BackgroundTransparency = 1
     if questFrame then
@@ -682,74 +642,47 @@ local function createMainStatusDisplay()
         rodsTween:Play()
     end
     
-    -- Update loop ที่ทำงานอิสระ
+    -- อัปเดต Quest ครั้งแรกทันที
     spawn(function()
+        wait(2)
+        print("=== Starting Quest UI Update (Using Main Script) ===")
+        updateQuestUI()
+    end)
+    
+    -- Update loop หลัก - ใช้ฟังก์ชันจาก Main Script
+    spawn(function()
+        wait(3)
+        
         while mainFrame.Parent do
-            wait(2)
-            
-            if mainFrame.Parent then
-                -- อัปเดตข้อมูลหลัก
-                local currentMoney = getPlayerMoney()
-                local currentItems = getInventoryCount()
+            if mainFrame.Parent and FishingData then
+                -- อัปเดตข้อมูลหลักด้วยฟังก์ชันจาก Main Script
+                local currentMoney = FishingData.getPlayerMoney()
+                local currentItems = FishingData.getInventoryCount()
                 
-                moneyLabel.Text = formatMoney(currentMoney)
-                itemsLabel.Text = currentItems .. " / 500"
-                
-                if currentItems >= 480 then
-                    itemsLabel.TextColor3 = Color3.fromRGB(251, 191, 36)
-                elseif currentItems >= 500 then
-                    itemsLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
-                else
-                    itemsLabel.TextColor3 = Color3.fromRGB(59, 130, 246)
+                if moneyLabel then
+                    moneyLabel.Text = FishingData.formatMoney(currentMoney)
                 end
                 
-                -- อัปเดต Quest Progress
-                if questItems then
-                    local questData = checkQuestStatus()
-                    local questTexts = questData.questTexts
-                    local progresses = {questData.quest1, questData.quest2, questData.quest3, questData.quest4}
+                if itemsLabel then
+                    itemsLabel.Text = currentItems .. " / 500"
                     
-                    for i, item in ipairs(questItems) do
-                        if item and item.Parent then
-                            local questLabel = item:FindFirstChild("QuestLabel")
-                            local progressLabel = item:FindFirstChild("ProgressLabel")
-                            local progressFill = item:FindFirstChild("ProgressFill")
-                            
-                            if questLabel and progressLabel and progressFill then
-                                if questTexts[i] and questTexts[i] ~= "" then
-                                    local shortText = questTexts[i]:sub(1, 35)
-                                    if questTexts[i]:len() > 35 then
-                                        shortText = shortText .. "..."
-                                    end
-                                    
-                                    questLabel.Text = "Quest " .. i .. ": " .. shortText
-                                    progressLabel.Text = progresses[i] .. "%"
-                                    progressLabel.TextColor3 = progresses[i] >= 100 and Color3.fromRGB(34, 197, 94) or Color3.fromRGB(156, 163, 175)
-                                    
-                                    local progressTween = TweenService:Create(progressFill,
-                                        TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-                                        {Size = UDim2.new(progresses[i] / 100, 0, 1, 0)}
-                                    )
-                                    progressTween:Play()
-                                    
-                                    progressFill.BackgroundColor3 = progresses[i] >= 100 and Color3.fromRGB(34, 197, 94) or Color3.fromRGB(59, 130, 246)
-                                else
-                                    questLabel.Text = "Quest " .. i .. ": ไม่พบ Quest Tracker"
-                                    progressLabel.Text = "N/A"
-                                    progressLabel.TextColor3 = Color3.fromRGB(156, 163, 175)
-                                    progressFill.Size = UDim2.new(0, 0, 1, 0)
-                                    progressFill.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
-                                end
-                            end
-                        end
+                    if currentItems >= 480 then
+                        itemsLabel.TextColor3 = Color3.fromRGB(251, 191, 36)
+                    elseif currentItems >= 500 then
+                        itemsLabel.TextColor3 = Color3.fromRGB(239, 68, 68)
+                    else
+                        itemsLabel.TextColor3 = Color3.fromRGB(59, 130, 246)
                     end
                 end
                 
-                -- อัปเดต Rods List
-                if rodsScroll then
-                    updateRodsList(rodsScroll)
-                end
+                -- อัปเดต Quest Progress ด้วยฟังก์ชันจาก Main Script
+                updateQuestUI()
+                
+                -- อัปเดต Rods List ด้วยฟังก์ชันจาก Main Script
+                updateRodsList()
             end
+            
+            wait(5)
         end
     end)
     
@@ -765,14 +698,69 @@ local function createMainStatusDisplay()
         end
     end)
     
-    print("✅ Independent Fishing UI loaded successfully!")
+    print("✅ UI loaded successfully using Main Script functions!")
     return screenGui
+end
+
+-- ========================================
+-- DEBUG FUNCTIONS
+-- ========================================
+
+local function testMainScriptConnection()
+    print("=== ทดสอบการเชื่อมต่อ Main Script ===")
+    
+    if FishingData then
+        print("✅ FishingData connected")
+        
+        -- ทดสอบฟังก์ชัน Quest
+        local success, questData = pcall(FishingData.checkQuestStatus)
+        if success then
+            print("✅ Quest functions working")
+            for i = 1, 4 do
+                print("  Quest " .. i .. ": " .. questData["quest"..i] .. "% - " .. (questData.questTexts[i] or "N/A"))
+            end
+        else
+            print("❌ Quest functions failed:", questData)
+        end
+        
+        -- ทดสอบฟังก์ชันอื่น
+        print("Money:", FishingData.formatMoney(FishingData.getPlayerMoney()))
+        print("Inventory:", FishingData.getInventoryCount())
+        print("Rods count:", #FishingData.getRodsList())
+    else
+        print("❌ FishingData not connected")
+    end
+    
+    print("=== จบการทดสอบ ===")
+end
+
+-- ========================================
+-- MANUAL UPDATE COMMANDS
+-- ========================================
+
+_G.updateQuestUI = updateQuestUI
+_G.testMainScript = testMainScriptConnection
+_G.forceUpdate = function()
+    print("Force updating all UI components using Main Script...")
+    updateQuestUI()
+    updateRodsList()
+    print("Force update completed!")
 end
 
 -- ========================================
 -- INITIALIZE UI
 -- ========================================
 
-print("เริ่มสร้าง Independent UI...")
+print("เริ่มสร้าง UI โดยใช้ฟังก์ชันจาก Main Script...")
 createMainStatusDisplay()
-print("✅ UI อิสระโหลดสำเร็จ - ไม่ต้องพึ่ง Main Script!")
+print("✅ UI โหลดสำเร็จ โดยใช้ฟังก์ชันจาก Main Script!")
+print("💡 คำสั่งใช้งาน:")
+print("   _G.updateQuestUI() - บังคับอัปเดต Quest")
+print("   _G.testMainScript() - ทดสอบการเชื่อมต่อ Main Script")
+print("   _G.forceUpdate() - บังคับอัปเดตทั้งหมด")
+
+-- ทดสอบการเชื่อมต่อ Main Script
+spawn(function()
+    wait(5)
+    testMainScriptConnection()
+end)
