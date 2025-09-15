@@ -588,10 +588,10 @@ local function createMainStatusDisplay()
         return indicator
     end
     
-    createStatusIndicator("Using Main Script", UDim2.new(0, 8, 0, 35))
-    createStatusIndicator("Quest System", UDim2.new(0, 130, 0, 35))
+    createStatusIndicator("Auto Farm", UDim2.new(0, 8, 0, 35))
+    createStatusIndicator("Auto Buy All Rods", UDim2.new(0, 130, 0, 35))
     createStatusIndicator("Auto Update", UDim2.new(0, 8, 0, 55))
-    createStatusIndicator("No Duplication", UDim2.new(0, 130, 0, 55))
+    createStatusIndicator("Auto Quest", UDim2.new(0, 130, 0, 55))
     
     -- สร้าง Quest และ Rods UI
     local questFrame = createQuestStatusUI()
