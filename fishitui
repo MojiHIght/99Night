@@ -1,7 +1,7 @@
 -- ========================================
 -- Fishing Script UI System - With Hidden Panels
 -- ลบการทำงานซ้ำซ้อน ใช้ _G.FishingScript เท่านั้น
--- เพิ่มระบบซ่อน/แสดง UI แบบ Toggle V1
+-- เพิ่มระบบซ่อน/แสดง UI แบบ Toggle
 -- ========================================
 
 local TweenService = game:GetService("TweenService")
@@ -188,6 +188,34 @@ local function updateBaitsList()
     local success, baits = pcall(FishingData.getBaitsList)
     if not success or not baits then return end
     
+    -- ดึงข้อมูล bait จาก ReplicatedStorage
+    local function getBaitDataFromGame(baitId)
+        local success, baitInfo = pcall(function()
+            local baitsFolder = game:GetService("ReplicatedStorage").Baits
+            
+            -- วนหาทุก bait module ใน folder
+            for _, child in pairs(baitsFolder:GetChildren()) do
+                if child:IsA("ModuleScript") then
+                    local moduleData = require(child)
+                    if moduleData and moduleData.Data and moduleData.Data.Id == baitId then
+                        return {
+                            name = moduleData.Data.Name,
+                            price = moduleData.Price or 0,
+                            tier = moduleData.Data.Tier or 1
+                        }
+                    end
+                end
+            end
+            return nil
+        end)
+        
+        if success and baitInfo then
+            return baitInfo
+        else
+            return nil
+        end
+    end
+    
     local yPos = 0
     
     for i, bait in ipairs(baits) do
@@ -203,16 +231,28 @@ local function updateBaitsList()
         baitCorner.CornerRadius = UDim.new(0, 6)
         baitCorner.Parent = baitItem
         
-        local baitName = Instance.new("TextLabel")
-        baitName.Size = UDim2.new(1, -60, 1, 0)
-        baitName.Position = UDim2.new(0, 8, 0, 0)
-        baitName.BackgroundTransparency = 1
-        baitName.Text = bait.name
-        baitName.TextColor3 = Color3.fromRGB(200, 200, 200)
-        baitName.TextSize = 11
-        baitName.Font = Enum.Font.Gotham
-        baitName.TextXAlignment = Enum.TextXAlignment.Left
-        baitName.Parent = baitItem
+        -- ค้นหาชื่อ bait จากเกม
+        local baitName = "Unknown Bait"
+        local gameData = getBaitDataFromGame(bait.id)
+        
+        if gameData and gameData.name then
+            baitName = gameData.name
+        elseif bait.name and bait.name ~= "" then
+            baitName = bait.name
+        else
+            baitName = "Bait ID: " .. (bait.id or "?")
+        end
+        
+        local baitNameLabel = Instance.new("TextLabel")
+        baitNameLabel.Size = UDim2.new(1, -60, 1, 0)
+        baitNameLabel.Position = UDim2.new(0, 8, 0, 0)
+        baitNameLabel.BackgroundTransparency = 1
+        baitNameLabel.Text = baitName
+        baitNameLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        baitNameLabel.TextSize = 11
+        baitNameLabel.Font = Enum.Font.Gotham
+        baitNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+        baitNameLabel.Parent = baitItem
         
         local quantityLabel = Instance.new("TextLabel")
         quantityLabel.Size = UDim2.new(0, 50, 1, 0)
