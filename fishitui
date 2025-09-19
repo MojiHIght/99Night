@@ -1,7 +1,7 @@
 -- ========================================
 -- Fishing Script UI System - With Hidden Panels
 -- ลบการทำงานซ้ำซ้อน ใช้ _G.FishingScript เท่านั้น
--- เพิ่มระบบซ่อน/แสดง UI แบบ Toggle
+-- เพิ่มระบบซ่อน/แสดง UI แบบ Toggle v2
 -- ========================================
 
 local TweenService = game:GetService("TweenService")
@@ -129,6 +129,33 @@ local function updateRodsList()
     local success, rods = pcall(FishingData.getRodsList)
     if not success or not rods then return end
     
+    -- ดึงข้อมูล rod จาก ReplicatedStorage เพื่อหาชื่อที่ถูกต้อง
+    local function getRodDataFromGame(rodId)
+        local success, rodInfo = pcall(function()
+            local rodsFolder = game:GetService("ReplicatedStorage")["Fishing Rods"]
+            
+            -- วนหาทุก rod module ใน folder
+            for _, child in pairs(rodsFolder:GetChildren()) do
+                if child:IsA("ModuleScript") then
+                    local moduleData = require(child)
+                    if moduleData and moduleData.Data and moduleData.Data.Id == rodId then
+                        return {
+                            name = moduleData.Data.Name,
+                            tier = moduleData.Data.Tier or 1
+                        }
+                    end
+                end
+            end
+            return nil
+        end)
+        
+        if success and rodInfo then
+            return rodInfo
+        else
+            return nil
+        end
+    end
+    
     local yPos = 0
     
     for i, rod in ipairs(rods) do
@@ -144,16 +171,24 @@ local function updateRodsList()
         rodCorner.CornerRadius = UDim.new(0, 6)
         rodCorner.Parent = rodItem
         
-        local rodName = Instance.new("TextLabel")
-        rodName.Size = UDim2.new(1, -50, 1, 0)
-        rodName.Position = UDim2.new(0, 8, 0, 0)
-        rodName.BackgroundTransparency = 1
-        rodName.Text = rod.name
-        rodName.TextColor3 = rod.isEquipped and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
-        rodName.TextSize = 11
-        rodName.Font = rod.isEquipped and Enum.Font.GothamBold or Enum.Font.Gotham
-        rodName.TextXAlignment = Enum.TextXAlignment.Left
-        rodName.Parent = rodItem
+        -- ค้นหาชื่อ rod จากเกม
+        local rodName = rod.name or "Unknown Rod"
+        local gameData = getRodDataFromGame(rod.id)
+        
+        if gameData and gameData.name then
+            rodName = gameData.name
+        end
+        
+        local rodNameLabel = Instance.new("TextLabel")
+        rodNameLabel.Size = UDim2.new(1, -50, 1, 0)
+        rodNameLabel.Position = UDim2.new(0, 8, 0, 0)
+        rodNameLabel.BackgroundTransparency = 1
+        rodNameLabel.Text = rodName
+        rodNameLabel.TextColor3 = rod.isEquipped and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
+        rodNameLabel.TextSize = 11
+        rodNameLabel.Font = rod.isEquipped and Enum.Font.GothamBold or Enum.Font.Gotham
+        rodNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+        rodNameLabel.Parent = rodItem
         
         if rod.isEquipped then
             local equippedIcon = Instance.new("TextLabel")
@@ -216,14 +251,31 @@ local function updateBaitsList()
         end
     end
     
+    -- ตรวจสอบ bait ที่กำลังใช้อยู่
+    local function getCurrentBaitId()
+        local success, currentBaitId = pcall(function()
+            local playerData = require(game:GetService("ReplicatedStorage").Packages.Replion).Client:WaitReplion("Data")
+            return playerData:Get("SelectedBait")
+        end)
+        
+        if success then
+            return currentBaitId
+        else
+            return nil
+        end
+    end
+    
+    local currentBaitId = getCurrentBaitId()
     local yPos = 0
     
     for i, bait in ipairs(baits) do
+        local isEquipped = (currentBaitId and currentBaitId == bait.id)
+        
         local baitItem = Instance.new("Frame")
         baitItem.Size = UDim2.new(1, 0, 0, 35)
         baitItem.Position = UDim2.new(0, 0, 0, yPos)
-        baitItem.BackgroundColor3 = Color3.fromRGB(30, 25, 45)
-        baitItem.BackgroundTransparency = 0.3
+        baitItem.BackgroundColor3 = isEquipped and Color3.fromRGB(34, 197, 94) or Color3.fromRGB(30, 25, 45)
+        baitItem.BackgroundTransparency = isEquipped and 0.8 or 0.3
         baitItem.BorderSizePixel = 0
         baitItem.Parent = baitsScroll
         
@@ -244,19 +296,32 @@ local function updateBaitsList()
         end
         
         local baitNameLabel = Instance.new("TextLabel")
-        baitNameLabel.Size = UDim2.new(1, -60, 1, 0)
+        baitNameLabel.Size = UDim2.new(1, -90, 1, 0)
         baitNameLabel.Position = UDim2.new(0, 8, 0, 0)
         baitNameLabel.BackgroundTransparency = 1
         baitNameLabel.Text = baitName
-        baitNameLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        baitNameLabel.TextColor3 = isEquipped and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
         baitNameLabel.TextSize = 11
-        baitNameLabel.Font = Enum.Font.Gotham
+        baitNameLabel.Font = isEquipped and Enum.Font.GothamBold or Enum.Font.Gotham
         baitNameLabel.TextXAlignment = Enum.TextXAlignment.Left
         baitNameLabel.Parent = baitItem
         
+        if isEquipped then
+            local equippedIcon = Instance.new("TextLabel")
+            equippedIcon.Size = UDim2.new(0, 25, 1, 0)
+            equippedIcon.Position = UDim2.new(1, -75, 0, 0)
+            equippedIcon.BackgroundTransparency = 1
+            equippedIcon.Text = "✓"
+            equippedIcon.TextColor3 = Color3.fromRGB(34, 197, 94)
+            equippedIcon.TextSize = 12
+            equippedIcon.Font = Enum.Font.GothamBold
+            equippedIcon.TextXAlignment = Enum.TextXAlignment.Center
+            equippedIcon.Parent = baitItem
+        end
+        
         local quantityLabel = Instance.new("TextLabel")
-        quantityLabel.Size = UDim2.new(0, 50, 1, 0)
-        quantityLabel.Position = UDim2.new(1, -55, 0, 0)
+        quantityLabel.Size = UDim2.new(0, 45, 1, 0)
+        quantityLabel.Position = UDim2.new(1, -50, 0, 0)
         quantityLabel.BackgroundTransparency = 1
         quantityLabel.Text = "x" .. (bait.quantity or 0)
         quantityLabel.TextColor3 = Color3.fromRGB(156, 163, 175)
