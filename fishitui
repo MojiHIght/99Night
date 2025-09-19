@@ -1,7 +1,7 @@
 -- ========================================
 -- Fishing Script UI System - With Hidden Panels
 -- ลบการทำงานซ้ำซ้อน ใช้ _G.FishingScript เท่านั้น
--- เพิ่มระบบซ่อน/แสดง UI แบบ Toggle
+-- เพิ่มระบบซ่อน/แสดง UI แบบ Toggle a
 -- ========================================
 
 local TweenService = game:GetService("TweenService")
@@ -204,7 +204,7 @@ local function updateBaitsList()
         baitCorner.Parent = baitItem
         
         local baitNameLabel = Instance.new("TextLabel")
-        baitNameLabel.Size = UDim2.new(1, -90, 1, 0)
+        baitNameLabel.Size = UDim2.new(1, -50, 1, 0)
         baitNameLabel.Position = UDim2.new(0, 8, 0, 0)
         baitNameLabel.BackgroundTransparency = 1
         baitNameLabel.Text = bait.name or "Unknown Bait"
@@ -216,27 +216,16 @@ local function updateBaitsList()
         
         if bait.isEquipped then
             local equippedIcon = Instance.new("TextLabel")
-            equippedIcon.Size = UDim2.new(0, 25, 1, 0)
-            equippedIcon.Position = UDim2.new(1, -75, 0, 0)
+            equippedIcon.Size = UDim2.new(0, 40, 1, 0)
+            equippedIcon.Position = UDim2.new(1, -45, 0, 0)
             equippedIcon.BackgroundTransparency = 1
             equippedIcon.Text = "✓"
             equippedIcon.TextColor3 = Color3.fromRGB(34, 197, 94)
-            equippedIcon.TextSize = 12
+            equippedIcon.TextSize = 14
             equippedIcon.Font = Enum.Font.GothamBold
             equippedIcon.TextXAlignment = Enum.TextXAlignment.Center
             equippedIcon.Parent = baitItem
         end
-        
-        local quantityLabel = Instance.new("TextLabel")
-        quantityLabel.Size = UDim2.new(0, 45, 1, 0)
-        quantityLabel.Position = UDim2.new(1, -50, 0, 0)
-        quantityLabel.BackgroundTransparency = 1
-        quantityLabel.Text = "x" .. (bait.quantity or 0)
-        quantityLabel.TextColor3 = Color3.fromRGB(156, 163, 175)
-        quantityLabel.TextSize = 10
-        quantityLabel.Font = Enum.Font.Gotham
-        quantityLabel.TextXAlignment = Enum.TextXAlignment.Right
-        quantityLabel.Parent = baitItem
         
         yPos = yPos + 40
     end
