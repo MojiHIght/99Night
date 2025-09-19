@@ -1,6 +1,7 @@
 -- ========================================
--- Fishing Script UI System - ใช้ฟังก์ชันจาก Main Script
+-- Fishing Script UI System - With Hidden Panels
 -- ลบการทำงานซ้ำซ้อน ใช้ _G.FishingScript เท่านั้น
+-- เพิ่มระบบซ่อน/แสดง UI แบบ Toggle
 -- ========================================
 
 local TweenService = game:GetService("TweenService")
@@ -24,6 +25,7 @@ local function waitForMainScript()
            FishingData.getInventoryCount and
            FishingData.checkQuestStatus and
            FishingData.getRodsList and
+           FishingData.getBaitsList and
            FishingData.formatMoney then
             
             return FishingData
@@ -48,8 +50,19 @@ end
 
 local questElements = {}
 local rodsScroll = nil
+local baitsScroll = nil
 local moneyLabel = nil
 local itemsLabel = nil
+local mainScreenGui = nil
+local questFrame = nil
+local rodsFrame = nil
+local baitsFrame = nil
+
+-- Toggle states
+local isUIVisible = true
+local isQuestVisible = false
+local isRodsVisible = false
+local isBaitsVisible = false
 
 -- ========================================
 -- UI UPDATE FUNCTIONS
@@ -161,22 +174,219 @@ local function updateRodsList()
     rodsScroll.CanvasSize = UDim2.new(0, 0, 0, yPos)
 end
 
+-- ฟังก์ชันอัปเดต Baits List โดยใช้ฟังก์ชันจาก Main Script
+local function updateBaitsList()
+    if not baitsScroll then return end
+    
+    for _, child in pairs(baitsScroll:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+    
+    -- ใช้ฟังก์ชันจาก Main Script
+    local success, baits = pcall(FishingData.getBaitsList)
+    if not success or not baits then return end
+    
+    local yPos = 0
+    
+    for i, bait in ipairs(baits) do
+        local baitItem = Instance.new("Frame")
+        baitItem.Size = UDim2.new(1, 0, 0, 35)
+        baitItem.Position = UDim2.new(0, 0, 0, yPos)
+        baitItem.BackgroundColor3 = Color3.fromRGB(30, 25, 45)
+        baitItem.BackgroundTransparency = 0.3
+        baitItem.BorderSizePixel = 0
+        baitItem.Parent = baitsScroll
+        
+        local baitCorner = Instance.new("UICorner")
+        baitCorner.CornerRadius = UDim.new(0, 6)
+        baitCorner.Parent = baitItem
+        
+        local baitName = Instance.new("TextLabel")
+        baitName.Size = UDim2.new(1, -60, 1, 0)
+        baitName.Position = UDim2.new(0, 8, 0, 0)
+        baitName.BackgroundTransparency = 1
+        baitName.Text = bait.name
+        baitName.TextColor3 = Color3.fromRGB(200, 200, 200)
+        baitName.TextSize = 11
+        baitName.Font = Enum.Font.Gotham
+        baitName.TextXAlignment = Enum.TextXAlignment.Left
+        baitName.Parent = baitItem
+        
+        local quantityLabel = Instance.new("TextLabel")
+        quantityLabel.Size = UDim2.new(0, 50, 1, 0)
+        quantityLabel.Position = UDim2.new(1, -55, 0, 0)
+        quantityLabel.BackgroundTransparency = 1
+        quantityLabel.Text = "x" .. (bait.quantity or 0)
+        quantityLabel.TextColor3 = Color3.fromRGB(156, 163, 175)
+        quantityLabel.TextSize = 10
+        quantityLabel.Font = Enum.Font.Gotham
+        quantityLabel.TextXAlignment = Enum.TextXAlignment.Right
+        quantityLabel.Parent = baitItem
+        
+        yPos = yPos + 40
+    end
+    
+    baitsScroll.CanvasSize = UDim2.new(0, 0, 0, yPos)
+end
+
+-- ========================================
+-- TOGGLE FUNCTIONS
+-- ========================================
+
+local function toggleMainUI()
+    if not mainScreenGui then return end
+    
+    isUIVisible = not isUIVisible
+    
+    local targetTransparency = isUIVisible and 0 or 1
+    local targetPosition = isUIVisible and UDim2.new(0.5, -190, 0.5, -170) or UDim2.new(0.5, -190, 0, -400)
+    
+    local mainFrame = mainScreenGui:FindFirstChild("MainFrame")
+    if mainFrame then
+        local tween = TweenService:Create(mainFrame,
+            TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+            {
+                BackgroundTransparency = targetTransparency,
+                Position = targetPosition
+            }
+        )
+        tween:Play()
+    end
+    
+    -- ซ่อน panels อื่นๆ ด้วยถ้า UI หลักถูกซ่อน
+    if not isUIVisible then
+        if questFrame then
+            questFrame.Visible = false
+        end
+        if rodsFrame then
+            rodsFrame.Visible = false
+        end
+        if baitsFrame then
+            baitsFrame.Visible = false
+        end
+        isQuestVisible = false
+        isRodsVisible = false
+        isBaitsVisible = false
+    end
+end
+
+local function toggleQuestPanel()
+    if not questFrame or not isUIVisible then return end
+    
+    isQuestVisible = not isQuestVisible
+    questFrame.Visible = isQuestVisible
+    
+    if isQuestVisible then
+        updateQuestUI()
+        -- ซ่อน panels อื่นๆ
+        if rodsFrame then rodsFrame.Visible = false end
+        if baitsFrame then baitsFrame.Visible = false end
+        isRodsVisible = false
+        isBaitsVisible = false
+        
+        -- Animation
+        questFrame.Size = UDim2.new(0, 0, 0, 0)
+        local tween = TweenService:Create(questFrame,
+            TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+            {Size = UDim2.new(0, 300, 0, 280)}
+        )
+        tween:Play()
+    end
+end
+
+local function toggleRodsPanel()
+    if not rodsFrame or not isUIVisible then return end
+    
+    isRodsVisible = not isRodsVisible
+    rodsFrame.Visible = isRodsVisible
+    
+    if isRodsVisible then
+        updateRodsList()
+        -- ซ่อน panels อื่นๆ
+        if questFrame then questFrame.Visible = false end
+        if baitsFrame then baitsFrame.Visible = false end
+        isQuestVisible = false
+        isBaitsVisible = false
+        
+        -- Animation
+        rodsFrame.Size = UDim2.new(0, 0, 0, 0)
+        local tween = TweenService:Create(rodsFrame,
+            TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+            {Size = UDim2.new(0, 250, 0, 300)}
+        )
+        tween:Play()
+    end
+end
+
+local function toggleBaitsPanel()
+    if not baitsFrame or not isUIVisible then return end
+    
+    isBaitsVisible = not isBaitsVisible
+    baitsFrame.Visible = isBaitsVisible
+    
+    if isBaitsVisible then
+        updateBaitsList()
+        -- ซ่อน panels อื่นๆ
+        if questFrame then questFrame.Visible = false end
+        if rodsFrame then rodsFrame.Visible = false end
+        isQuestVisible = false
+        isRodsVisible = false
+        
+        -- Animation
+        baitsFrame.Size = UDim2.new(0, 0, 0, 0)
+        local tween = TweenService:Create(baitsFrame,
+            TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+            {Size = UDim2.new(0, 220, 0, 280)}
+        )
+        tween:Play()
+    end
+end
+
 -- ========================================
 -- UI CREATION FUNCTIONS
 -- ========================================
 
--- ฟังก์ชันสำหรับสร้าง Quest Status UI (ด้านขวา)
-local function createQuestStatusUI()
-    local screenGui = PlayerGui:FindFirstChild("AutoFishingStatusMacOS")
-    if not screenGui then return end
+-- สร้าง Toggle Button (ปุ่มซ่อน/แสดง UI ทั้งหมด)
+local function createToggleButton()
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Name = "ToggleButton"
+    toggleButton.Size = UDim2.new(0, 50, 0, 50)
+    toggleButton.Position = UDim2.new(1, -70, 0, 20)
+    toggleButton.BackgroundColor3 = Color3.fromRGB(147, 51, 234)
+    toggleButton.BorderSizePixel = 0
+    toggleButton.Text = "UI"
+    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleButton.TextSize = 16
+    toggleButton.Font = Enum.Font.GothamBold
+    toggleButton.Parent = mainScreenGui
     
-    local questFrame = Instance.new("Frame")
+    local buttonCorner = Instance.new("UICorner")
+    buttonCorner.CornerRadius = UDim.new(0.5, 0)
+    buttonCorner.Parent = toggleButton
+    
+    local buttonStroke = Instance.new("UIStroke")
+    buttonStroke.Color = Color3.fromRGB(255, 255, 255)
+    buttonStroke.Thickness = 2
+    buttonStroke.Transparency = 0.8
+    buttonStroke.Parent = toggleButton
+    
+    toggleButton.MouseButton1Click:Connect(toggleMainUI)
+    
+    return toggleButton
+end
+
+-- ฟังก์ชันสำหรับสร้าง Quest Status UI (ซ่อนอยู่)
+local function createQuestStatusUI()
+    questFrame = Instance.new("Frame")
     questFrame.Name = "QuestFrame"
     questFrame.Size = UDim2.new(0, 300, 0, 280)
     questFrame.Position = UDim2.new(0.5, 200, 0.5, -140)
     questFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 25)
     questFrame.BorderSizePixel = 0
-    questFrame.Parent = screenGui
+    questFrame.Visible = false
+    questFrame.Parent = mainScreenGui
     
     local questCorner = Instance.new("UICorner")
     questCorner.CornerRadius = UDim.new(0, 16)
@@ -298,18 +508,16 @@ local function createQuestStatusUI()
     return questFrame
 end
 
--- ฟังก์ชันสำหรับสร้าง Rods Status UI (ด้านซ้าย)
+-- ฟังก์ชันสำหรับสร้าง Rods Status UI (ซ่อนอยู่)
 local function createRodsStatusUI()
-    local screenGui = PlayerGui:FindFirstChild("AutoFishingStatusMacOS")
-    if not screenGui then return end
-    
-    local rodsFrame = Instance.new("Frame")
+    rodsFrame = Instance.new("Frame")
     rodsFrame.Name = "RodsFrame"
     rodsFrame.Size = UDim2.new(0, 250, 0, 300)
     rodsFrame.Position = UDim2.new(0.5, -450, 0.5, -150)
     rodsFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 25)
     rodsFrame.BorderSizePixel = 0
-    rodsFrame.Parent = screenGui
+    rodsFrame.Visible = false
+    rodsFrame.Parent = mainScreenGui
     
     local rodsCorner = Instance.new("UICorner")
     rodsCorner.CornerRadius = UDim.new(0, 16)
@@ -344,6 +552,50 @@ local function createRodsStatusUI()
     return rodsFrame
 end
 
+-- ฟังก์ชันสำหรับสร้าง Baits Status UI (ซ่อนอยู่)
+local function createBaitsStatusUI()
+    baitsFrame = Instance.new("Frame")
+    baitsFrame.Name = "BaitsFrame"
+    baitsFrame.Size = UDim2.new(0, 220, 0, 280)
+    baitsFrame.Position = UDim2.new(0.5, -350, 0.5, 50)
+    baitsFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 25)
+    baitsFrame.BorderSizePixel = 0
+    baitsFrame.Visible = false
+    baitsFrame.Parent = mainScreenGui
+    
+    local baitsCorner = Instance.new("UICorner")
+    baitsCorner.CornerRadius = UDim.new(0, 16)
+    baitsCorner.Parent = baitsFrame
+    
+    local baitsStroke = Instance.new("UIStroke")
+    baitsStroke.Color = Color3.fromRGB(147, 51, 234)
+    baitsStroke.Thickness = 1
+    baitsStroke.Transparency = 0.7
+    baitsStroke.Parent = baitsFrame
+    
+    local baitsTitle = Instance.new("TextLabel")
+    baitsTitle.Size = UDim2.new(1, -20, 0, 40)
+    baitsTitle.Position = UDim2.new(0, 10, 0, 10)
+    baitsTitle.BackgroundTransparency = 1
+    baitsTitle.Text = "🪱 Fishing Baits"
+    baitsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    baitsTitle.TextSize = 16
+    baitsTitle.Font = Enum.Font.GothamBold
+    baitsTitle.TextXAlignment = Enum.TextXAlignment.Left
+    baitsTitle.Parent = baitsFrame
+    
+    baitsScroll = Instance.new("ScrollingFrame")
+    baitsScroll.Size = UDim2.new(1, -20, 1, -60)
+    baitsScroll.Position = UDim2.new(0, 10, 0, 50)
+    baitsScroll.BackgroundTransparency = 1
+    baitsScroll.BorderSizePixel = 0
+    baitsScroll.ScrollBarThickness = 4
+    baitsScroll.ScrollBarImageColor3 = Color3.fromRGB(147, 51, 234)
+    baitsScroll.Parent = baitsFrame
+    
+    return baitsFrame
+end
+
 -- ========================================
 -- MAIN UI CREATION
 -- ========================================
@@ -354,18 +606,18 @@ local function createMainStatusDisplay()
         existingGui:Destroy()
     end
     
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "AutoFishingStatusMacOS"
-    screenGui.ResetOnSpawn = false
-    screenGui.Parent = PlayerGui
+    mainScreenGui = Instance.new("ScreenGui")
+    mainScreenGui.Name = "AutoFishingStatusMacOS"
+    mainScreenGui.ResetOnSpawn = false
+    mainScreenGui.Parent = PlayerGui
     
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0, 380, 0, 340)
-    mainFrame.Position = UDim2.new(0.5, -190, 0.5, -170)
+    mainFrame.Size = UDim2.new(0, 380, 0, 380)
+    mainFrame.Position = UDim2.new(0.5, -190, 0.5, -190)
     mainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 25)
     mainFrame.BorderSizePixel = 0
-    mainFrame.Parent = screenGui
+    mainFrame.Parent = mainScreenGui
     
     local mainCorner = Instance.new("UICorner")
     mainCorner.CornerRadius = UDim.new(0, 16)
@@ -502,9 +754,42 @@ local function createMainStatusDisplay()
     itemsLabel = createStatCard("Inventory", FishingData.getInventoryCount() .. " / 500", 
         UDim2.new(0.55, 0, 0, 0), Color3.fromRGB(59, 130, 246))
     
+    -- Panel Toggle Buttons Section
+    local panelButtonsFrame = Instance.new("Frame")
+    panelButtonsFrame.Size = UDim2.new(1, 0, 0, 50)
+    panelButtonsFrame.Position = UDim2.new(0, 0, 0, 70)
+    panelButtonsFrame.BackgroundTransparency = 1
+    panelButtonsFrame.Parent = contentFrame
+    
+    local function createPanelButton(text, position, clickFunction)
+        local button = Instance.new("TextButton")
+        button.Size = UDim2.new(0.3, 0, 1, 0)
+        button.Position = position
+        button.BackgroundColor3 = Color3.fromRGB(147, 51, 234)
+        button.BackgroundTransparency = 0.2
+        button.BorderSizePixel = 0
+        button.Text = text
+        button.TextColor3 = Color3.fromRGB(255, 255, 255)
+        button.TextSize = 12
+        button.Font = Enum.Font.GothamBold
+        button.Parent = panelButtonsFrame
+        
+        local buttonCorner = Instance.new("UICorner")
+        buttonCorner.CornerRadius = UDim.new(0, 8)
+        buttonCorner.Parent = button
+        
+        button.MouseButton1Click:Connect(clickFunction)
+        
+        return button
+    end
+    
+    createPanelButton("Quest", UDim2.new(0, 0, 0, 0), toggleQuestPanel)
+    createPanelButton("Rods", UDim2.new(0.35, 0, 0, 0), toggleRodsPanel)
+    createPanelButton("Baits", UDim2.new(0.7, 0, 0, 0), toggleBaitsPanel)
+    
     local systemCard = Instance.new("Frame")
     systemCard.Size = UDim2.new(1, 0, 0, 140)
-    systemCard.Position = UDim2.new(0, 0, 0, 70)
+    systemCard.Position = UDim2.new(0, 0, 0, 140)
     systemCard.BackgroundColor3 = Color3.fromRGB(30, 25, 45)
     systemCard.BackgroundTransparency = 0.3
     systemCard.BorderSizePixel = 0
@@ -564,64 +849,32 @@ local function createMainStatusDisplay()
     end
     
     createStatusIndicator("Auto Farm", UDim2.new(0, 8, 0, 35))
-    createStatusIndicator("Auto Buy All Rods", UDim2.new(0, 130, 0, 35))
+    createStatusIndicator("Auto Buy Rods", UDim2.new(0, 130, 0, 35))
+    createStatusIndicator("Auto Buy Baits", UDim2.new(0, 260, 0, 35))
     createStatusIndicator("Auto Update", UDim2.new(0, 8, 0, 55))
     createStatusIndicator("Auto Quest", UDim2.new(0, 130, 0, 55))
+    createStatusIndicator("Death Recovery", UDim2.new(0, 260, 0, 55))
     
-    -- สร้าง Quest และ Rods UI
-    local questFrame = createQuestStatusUI()
-    local rodsFrame = createRodsStatusUI()
+    -- สร้าง Toggle Button
+    createToggleButton()
+    
+    -- สร้าง Hidden Panels
+    createQuestStatusUI()
+    createRodsStatusUI()
+    createBaitsStatusUI()
     
     -- Animation
     mainFrame.Size = UDim2.new(0, 0, 0, 0)
     mainFrame.BackgroundTransparency = 1
-    if questFrame then
-        questFrame.Size = UDim2.new(0, 0, 0, 0)
-        questFrame.BackgroundTransparency = 1
-    end
-    if rodsFrame then
-        rodsFrame.Size = UDim2.new(0, 0, 0, 0)
-        rodsFrame.BackgroundTransparency = 1
-    end
     
     local entranceTween = TweenService:Create(mainFrame,
         TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
         {
-            Size = UDim2.new(0, 380, 0, 340),
+            Size = UDim2.new(0, 380, 0, 380),
             BackgroundTransparency = 0
         }
     )
     entranceTween:Play()
-    
-    if questFrame then
-        wait(0.2)
-        local questTween = TweenService:Create(questFrame,
-            TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-            {
-                Size = UDim2.new(0, 300, 0, 280),
-                BackgroundTransparency = 0
-            }
-        )
-        questTween:Play()
-    end
-    
-    if rodsFrame then
-        wait(0.2)
-        local rodsTween = TweenService:Create(rodsFrame,
-            TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-            {
-                Size = UDim2.new(0, 250, 0, 300),
-                BackgroundTransparency = 0
-            }
-        )
-        rodsTween:Play()
-    end
-    
-    -- อัปเดต Quest ครั้งแรกทันที
-    spawn(function()
-        wait(2)
-        updateQuestUI()
-    end)
     
     -- Update loop หลัก - ใช้ฟังก์ชันจาก Main Script
     spawn(function()
@@ -649,11 +902,18 @@ local function createMainStatusDisplay()
                     end
                 end
                 
-                -- อัปเดต Quest Progress ด้วยฟังก์ชันจาก Main Script
-                updateQuestUI()
+                -- อัปเดต panels ที่กำลังแสดงอยู่
+                if isQuestVisible then
+                    updateQuestUI()
+                end
                 
-                -- อัปเดต Rods List ด้วยฟังก์ชันจาก Main Script
-                updateRodsList()
+                if isRodsVisible then
+                    updateRodsList()
+                end
+                
+                if isBaitsVisible then
+                    updateBaitsList()
+                end
             end
             
             wait(5)
@@ -672,24 +932,7 @@ local function createMainStatusDisplay()
         end
     end)
     
-    return screenGui
-end
-
--- ========================================
--- DEBUG FUNCTIONS
--- ========================================
-
-local function testMainScriptConnection()
-    if FishingData then
-        -- ทดสอบฟังก์ชัน Quest
-        local success, questData = pcall(FishingData.checkQuestStatus)
-        if success then
-            for i = 1, 4 do
-                local progress = questData["quest"..i]
-                local text = questData.questTexts[i] or "N/A"
-            end
-        end
-    end
+    return mainScreenGui
 end
 
 -- ========================================
@@ -697,10 +940,13 @@ end
 -- ========================================
 
 _G.updateQuestUI = updateQuestUI
-_G.testMainScript = testMainScriptConnection
+_G.updateRodsList = updateRodsList
+_G.updateBaitsList = updateBaitsList
+_G.toggleMainUI = toggleMainUI
 _G.forceUpdate = function()
     updateQuestUI()
     updateRodsList()
+    updateBaitsList()
 end
 
 -- ========================================
@@ -708,9 +954,3 @@ end
 -- ========================================
 
 createMainStatusDisplay()
-
--- ทดสอบการเชื่อมต่อ Main Script
-spawn(function()
-    wait(5)
-    testMainScriptConnection()
-end)
