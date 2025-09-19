@@ -1,7 +1,7 @@
 -- ========================================
 -- Fishing Script UI System - With Hidden Panels
 -- ลบการทำงานซ้ำซ้อน ใช้ _G.FishingScript เท่านั้น
--- เพิ่มระบบซ่อน/แสดง UI แบบ Toggle
+-- เพิ่มระบบซ่อน/แสดง UI แบบ Toggle V1
 -- ========================================
 
 local TweenService = game:GetService("TweenService")
@@ -338,7 +338,7 @@ local function toggleBaitsPanel()
         baitsFrame.Size = UDim2.new(0, 0, 0, 0)
         local tween = TweenService:Create(baitsFrame,
             TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-            {Size = UDim2.new(0, 220, 0, 280)}
+            {Size = UDim2.new(0, 250, 0, 300)}
         )
         tween:Play()
     end
@@ -382,7 +382,7 @@ local function createQuestStatusUI()
     questFrame = Instance.new("Frame")
     questFrame.Name = "QuestFrame"
     questFrame.Size = UDim2.new(0, 300, 0, 280)
-    questFrame.Position = UDim2.new(0.5, 200, 0.5, -140)
+    questFrame.Position = UDim2.new(0.5, -450, 0.5, -150)
     questFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 25)
     questFrame.BorderSizePixel = 0
     questFrame.Visible = false
@@ -556,8 +556,8 @@ end
 local function createBaitsStatusUI()
     baitsFrame = Instance.new("Frame")
     baitsFrame.Name = "BaitsFrame"
-    baitsFrame.Size = UDim2.new(0, 220, 0, 280)
-    baitsFrame.Position = UDim2.new(0.5, -350, 0.5, 50)
+    baitsFrame.Size = UDim2.new(0, 250, 0, 300)
+    baitsFrame.Position = UDim2.new(0.5, -450, 0.5, -150)
     baitsFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 25)
     baitsFrame.BorderSizePixel = 0
     baitsFrame.Visible = false
